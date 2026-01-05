@@ -1,2 +1,2 @@
-# v-lo-morvan.info
+# velo-morvan.info
 vélo-morvan.info
