@@ -77,6 +77,25 @@
       color: #667eea;
       font-size: 16px;
     }
+    .info-box {
+      background: #e3f2fd;
+      border-left: 4px solid #2196F3;
+      padding: 15px;
+      margin: 20px 0;
+    }
+    .reset-btn {
+      background: #ff9800;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      margin: 10px 0;
+    }
+    .reset-btn:hover {
+      background: #f57c00;
+    }
   </style>
 </head>
 <body>
@@ -86,12 +105,28 @@
 
   <h2>📌 Installation</h2>
 
+  <div class="info-box">
+    <strong>💡 Comment ça marche ?</strong>
+    <ul>
+      <li>Au <strong>premier clic</strong> : demande l'URL et la sauvegarde dans le navigateur</li>
+      <li>Aux <strong>clics suivants</strong> : charge directement sans demander</li>
+      <li>En cas d'erreur : efface l'URL sauvegardée automatiquement</li>
+      <li>Pour changer d'URL : utilisez le bouton "Réinitialiser l'URL" ci-dessous</li>
+    </ul>
+  </div>
+
   <div class="instructions">
     <p><strong>Faites glisser ce bouton dans votre barre de favoris :</strong></p>
 
-    <a href="javascript:(function(){if(window.VisualEditorLoaded){alert('Visual Editor déjà chargé!');return;}var url=prompt('URL du serveur Visual Editor:','http://127.0.0.1:5500/assets/js/visual-editor.js');if(!url)return;window.VisualEditorLoaded=true;var s=document.createElement('script');s.src=url;s.onload=function(){console.log('🎨 Visual Editor loaded! Press Ctrl+E');};s.onerror=function(){alert('❌ Erreur de chargement. Vérifiez l\\'URL.');window.VisualEditorLoaded=false;};document.head.appendChild(s);})();" class="bookmarklet">
+    <a href="javascript:(function(){if(window.VisualEditorLoaded){alert('Visual Editor déjà chargé!');return;}var url=localStorage.getItem('veURL');if(!url){url=prompt('URL du Visual Editor (sauvegardée pour la prochaine fois):','http://127.0.0.1:5500/assets/js/visual-editor.js');if(!url)return;localStorage.setItem('veURL',url);}window.VisualEditorLoaded=true;var s=document.createElement('script');s.src=url;s.onload=function(){console.log('🎨 Visual Editor loaded from: '+url+' | Press Ctrl+E');};s.onerror=function(){alert('❌ Erreur de chargement. URL effacée, réessayez.');localStorage.removeItem('veURL');window.VisualEditorLoaded=false;};document.head.appendChild(s);})();" class="bookmarklet">
       🎨 Visual Editor
     </a>
+
+    <p style="margin-top: 15px;">
+      <button class="reset-btn" onclick="localStorage.removeItem('veURL');alert('✅ URL réinitialisée! Le prochain clic demandera une nouvelle URL.');">
+        🔄 Réinitialiser l'URL sauvegardée
+      </button>
+    </p>
 
     <p><strong>Ou suivez ces étapes :</strong></p>
     <ol>
@@ -113,6 +148,8 @@
     <ol>
       <li>Allez sur <strong>n'importe quel site web</strong></li>
       <li>Cliquez sur le favori <strong>🎨 Visual Editor</strong> dans votre barre</li>
+      <li><strong>Premier clic uniquement</strong> : Entrez l'URL du serveur (exemple : <code>http://127.0.0.1:5500/assets/js/visual-editor.js</code>)</li>
+      <li>L'URL est <strong>sauvegardée</strong> dans le navigateur pour les prochaines fois</li>
       <li>Appuyez sur <code>Ctrl + E</code> pour activer l'éditeur</li>
       <li>Modifiez la page en temps réel !</li>
     </ol>
@@ -203,20 +240,27 @@
       <li>Nommez-le "🎨 Visual Editor"</li>
       <li>Copiez-collez ce code dans le champ URL :</li>
     </ol>
-    <textarea readonly style="width: 100%; height: 150px; font-family: monospace; font-size: 12px; padding: 10px; margin: 10px 0;">javascript:(function(){if(window.VisualEditorLoaded){alert('Visual Editor déjà chargé!');return;}var url=prompt('URL du serveur Visual Editor:','http://127.0.0.1:5500/assets/js/visual-editor.js');if(!url)return;window.VisualEditorLoaded=true;var s=document.createElement('script');s.src=url;s.onload=function(){console.log('🎨 Visual Editor loaded! Press Ctrl+E');};s.onerror=function(){alert('❌ Erreur de chargement. Vérifiez l\'URL.');window.VisualEditorLoaded=false;};document.head.appendChild(s);})();</textarea>
+    <textarea readonly style="width: 100%; height: 150px; font-family: monospace; font-size: 12px; padding: 10px; margin: 10px 0;">javascript:(function(){if(window.VisualEditorLoaded){alert('Visual Editor déjà chargé!');return;}var url=localStorage.getItem('veURL');if(!url){url=prompt('URL du Visual Editor (sauvegardée pour la prochaine fois):','http://127.0.0.1:5500/assets/js/visual-editor.js');if(!url)return;localStorage.setItem('veURL',url);}window.VisualEditorLoaded=true;var s=document.createElement('script');s.src=url;s.onload=function(){console.log('🎨 Visual Editor loaded from: '+url+' | Press Ctrl+E');};s.onerror=function(){alert('❌ Erreur de chargement. URL effacée, réessayez.');localStorage.removeItem('veURL');window.VisualEditorLoaded=false;};document.head.appendChild(s);})();</textarea>
   </div>
 
   <h2>💻 Pour les développeurs</h2>
 
   <p>Vous pouvez aussi charger l'éditeur via la console du navigateur (<code>F12</code>) :</p>
 
-  <textarea readonly style="width: 100%; height: 120px; font-family: monospace; font-size: 12px; padding: 10px; margin: 10px 0;">(function(){
-  var url = prompt('URL du serveur:', 'http://127.0.0.1:5500/assets/js/visual-editor.js');
-  if (!url) return;
+  <textarea readonly style="width: 100%; height: 150px; font-family: monospace; font-size: 12px; padding: 10px; margin: 10px 0;">(function(){
+  var url = localStorage.getItem('veURL');
+  if (!url) {
+    url = prompt('URL du Visual Editor (sauvegardée pour la prochaine fois):', 'http://127.0.0.1:5500/assets/js/visual-editor.js');
+    if (!url) return;
+    localStorage.setItem('veURL', url);
+  }
   var s = document.createElement('script');
   s.src = url;
-  s.onload = function() { console.log('✅ Loaded! Press Ctrl+E'); };
-  s.onerror = function() { alert('❌ Erreur de chargement'); };
+  s.onload = function() { console.log('✅ Loaded from: ' + url + ' | Press Ctrl+E'); };
+  s.onerror = function() {
+    alert('❌ Erreur de chargement. URL effacée.');
+    localStorage.removeItem('veURL');
+  };
   document.head.appendChild(s);
 })();</textarea>
 
