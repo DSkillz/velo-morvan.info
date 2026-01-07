@@ -10,7 +10,10 @@
       "Bash(git fetch:*)",
       "Bash(git push:*)",
       "Bash(git checkout:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Visual Editor - Real-time HTML/CSS editor with drag & drop\n\nFeatures:\n- Live element hover with visual overlay\n- Click to select and edit any element\n- Real-time CSS property editing\n- Drag & drop elements to reorder DOM\n- HTML content editing \\(innerHTML\\)\n- Element deletion\n- Export modifications \\(JSON + HTML\\)\n- Toggle with Ctrl+E\n- Beautiful gradient UI with floating panels\n\nThis is a powerful visual editor that allows editing the page in real-time\nwithout touching the source code. All modifications are tracked and exportable.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Visual Editor documentation\n\nComplete usage guide with:\n- Activation instructions \\(Ctrl+E\\)\n- Feature descriptions\n- Use cases\n- Keyboard shortcuts\n- UI interface guide\n- Tips and limitations\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)"
     ]
   }
 }

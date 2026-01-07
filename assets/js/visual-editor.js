@@ -12,7 +12,7 @@
     overlayBorder: '2px solid #2196F3',
     selectedColor: 'rgba(76, 175, 80, 0.3)',
     selectedBorder: '3px solid #4CAF50',
-    excludeSelectors: ['.visual-editor-overlay', '.visual-editor-panel', '.visual-editor-toolbar']
+    excludeSelectors: ['.visual-editor-overlay', '.visual-editor-panel', '.visual-editor-toolbar', '.ve-drop-indicator']
   };
 
   // État global
@@ -175,6 +175,13 @@
       state.isDragging = !state.isDragging;
       e.target.textContent = state.isDragging ? '🔓 Drag ON' : '🔒 Drag OFF';
       e.target.style.background = state.isDragging ? 'rgba(76, 175, 80, 0.3)' : 'rgba(255,255,255,0.2)';
+
+      // Activer/désactiver draggable sur tous les éléments non-éditeur
+      if (state.isDragging) {
+        enableDragForAll();
+      } else {
+        disableDragForAll();
+      }
     });
 
     document.getElementById('ve-export').addEventListener('click', exportModifications);
@@ -191,15 +198,35 @@
   }
 
   /**
+   * Obtient l'élément réel sous le curseur (ignore les overlays)
+   */
+  function getElementAtPoint(x, y) {
+    // Cacher temporairement les overlays pour obtenir l'élément réel
+    const overlayDisplay = ui.overlay.style.display;
+    const selectedDisplay = ui.selectedOverlay.style.display;
+
+    ui.overlay.style.display = 'none';
+    ui.selectedOverlay.style.display = 'none';
+
+    const element = document.elementFromPoint(x, y);
+
+    ui.overlay.style.display = overlayDisplay;
+    ui.selectedOverlay.style.display = selectedDisplay;
+
+    return element;
+  }
+
+  /**
    * Gestion du mouvement de souris (survol)
    */
   function handleMouseMove(e) {
     if (!state.enabled) return;
 
-    const target = e.target;
+    // Obtenir l'élément réel sous le curseur
+    const target = getElementAtPoint(e.clientX, e.clientY);
 
     // Ignorer les éléments de l'éditeur
-    if (isEditorElement(target)) {
+    if (!target || isEditorElement(target)) {
       ui.overlay.style.display = 'none';
       return;
     }
@@ -214,9 +241,10 @@
   function handleClick(e) {
     if (!state.enabled) return;
 
-    const target = e.target;
+    // Obtenir l'élément réel sous le curseur
+    const target = getElementAtPoint(e.clientX, e.clientY);
 
-    if (isEditorElement(target)) return;
+    if (!target || isEditorElement(target)) return;
 
     e.preventDefault();
     e.stopPropagation();
@@ -224,11 +252,6 @@
     state.selectedElement = target;
     updateOverlay(ui.selectedOverlay, target);
     updatePanel(target);
-
-    // Activer le drag si mode activé
-    if (state.isDragging) {
-      target.setAttribute('draggable', 'true');
-    }
   }
 
   /**
@@ -339,23 +362,64 @@
     if (isEditorElement(e.target)) return;
 
     state.dragElement = e.target;
-    e.target.style.opacity = '0.5';
+    e.target.style.opacity = '0.4';
+    e.target.style.cursor = 'grabbing';
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', e.target.outerHTML);
+
+    // Cacher les overlays pendant le drag
+    ui.overlay.style.display = 'none';
+
+    console.log('🔵 Drag started:', getElementPath(e.target));
   }
 
   function handleDragOver(e) {
     if (!state.enabled || !state.isDragging) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+
+    // Obtenir l'élément réel sous le curseur
+    const target = getElementAtPoint(e.clientX, e.clientY);
+
+    if (!target || isEditorElement(target)) return;
+    if (target === state.dragElement) return;
+
+    // Feedback visuel : ligne d'insertion
+    document.querySelectorAll('.ve-drop-indicator').forEach(el => el.remove());
+
+    const rect = target.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const insertBefore = e.clientY < midY;
+
+    const indicator = document.createElement('div');
+    indicator.className = 've-drop-indicator';
+    indicator.style.cssText = `
+      position: absolute;
+      left: ${rect.left}px;
+      top: ${insertBefore ? rect.top : rect.bottom}px;
+      width: ${rect.width}px;
+      height: 3px;
+      background: #4CAF50;
+      z-index: 999999;
+      pointer-events: none;
+      box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+    `;
+    document.body.appendChild(indicator);
   }
 
   function handleDrop(e) {
     if (!state.enabled || !state.isDragging) return;
-    if (isEditorElement(e.target)) return;
 
     e.preventDefault();
+    e.stopPropagation();
 
-    const target = e.target;
+    // Enlever les indicateurs
+    document.querySelectorAll('.ve-drop-indicator').forEach(el => el.remove());
+
+    // Obtenir l'élément réel sous le curseur
+    const target = getElementAtPoint(e.clientX, e.clientY);
+
+    if (!target || isEditorElement(target)) return;
 
     if (state.dragElement && target !== state.dragElement && !state.dragElement.contains(target)) {
       // Insérer avant ou après selon la position
@@ -369,13 +433,25 @@
       }
 
       recordModification(state.dragElement, 'moved', null, getElementPath(state.dragElement));
+      console.log('✅ Element moved:', getElementPath(state.dragElement));
+
+      // Mettre à jour l'overlay de sélection
+      if (state.selectedElement === state.dragElement) {
+        updateOverlay(ui.selectedOverlay, state.dragElement);
+      }
     }
   }
 
   function handleDragEnd(e) {
     if (!state.enabled) return;
     e.target.style.opacity = '';
+    e.target.style.cursor = '';
     state.dragElement = null;
+
+    // Enlever les indicateurs
+    document.querySelectorAll('.ve-drop-indicator').forEach(el => el.remove());
+
+    console.log('🔴 Drag ended');
   }
 
   /**
@@ -456,6 +532,34 @@
   }
 
   /**
+   * Active le drag pour tous les éléments
+   */
+  function enableDragForAll() {
+    const allElements = document.querySelectorAll('body *:not(script):not(style):not(link)');
+    allElements.forEach(el => {
+      if (!isEditorElement(el)) {
+        el.setAttribute('draggable', 'true');
+        el.style.cursor = 'grab';
+      }
+    });
+    console.log('🔓 Drag enabled for all elements');
+  }
+
+  /**
+   * Désactive le drag pour tous les éléments
+   */
+  function disableDragForAll() {
+    const allElements = document.querySelectorAll('[draggable="true"]');
+    allElements.forEach(el => {
+      if (!isEditorElement(el)) {
+        el.removeAttribute('draggable');
+        el.style.cursor = '';
+      }
+    });
+    console.log('🔒 Drag disabled for all elements');
+  }
+
+  /**
    * Toggle l'éditeur
    */
   function toggleEditor() {
@@ -473,9 +577,13 @@
       document.body.style.cursor = '';
 
       // Désactiver le drag
-      document.querySelectorAll('[draggable="true"]').forEach(el => {
-        el.removeAttribute('draggable');
-      });
+      if (state.isDragging) {
+        state.isDragging = false;
+        disableDragForAll();
+      }
+
+      // Nettoyer les indicateurs de drop
+      document.querySelectorAll('.ve-drop-indicator').forEach(el => el.remove());
     }
   }
 
