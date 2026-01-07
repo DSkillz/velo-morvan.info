@@ -22,7 +22,9 @@
     selectedElement: null,
     isDragging: false,
     dragElement: null,
-    modifications: []
+    modifications: [],
+    history: [],
+    historyIndex: -1
   };
 
   // Éléments UI
@@ -103,6 +105,12 @@
 
     ui.toolbar.innerHTML = `
       <span>🎨 Visual Editor</span>
+      <button id="ve-undo" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-weight: 600;" disabled title="Undo (Ctrl+Z)">
+        ↶ <span id="ve-undo-count">0</span>
+      </button>
+      <button id="ve-redo" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-weight: 600;" disabled title="Redo (Ctrl+Y)">
+        ↷ <span id="ve-redo-count">0</span>
+      </button>
       <button id="ve-toggle-drag" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-weight: 600;">
         🔒 Drag OFF
       </button>
@@ -137,14 +145,18 @@
       flex-direction: column;
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      transition: max-height 0.3s ease, width 0.3s ease;
     `;
 
     ui.panel.innerHTML = `
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 16px; color: white;">
-        <h3 style="margin: 0; font-size: 16px; font-weight: 600;">Element Editor</h3>
-        <div id="ve-element-path" style="font-size: 12px; opacity: 0.9; margin-top: 4px;">Select an element</div>
+      <div id="ve-panel-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 16px; color: white; cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 600;">Element Editor</h3>
+          <div id="ve-element-path" style="font-size: 12px; opacity: 0.9; margin-top: 4px;">Select an element</div>
+        </div>
+        <button id="ve-panel-toggle" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 16px;" title="Minimize/Maximize">−</button>
       </div>
-      <div style="overflow-y: auto; flex: 1;">
+      <div id="ve-panel-body" style="overflow-y: auto; flex: 1;">
         <div id="ve-editor-content" style="padding: 16px;">
           <p style="color: #999; font-size: 14px; text-align: center;">Click on any element to edit</p>
         </div>
@@ -152,23 +164,82 @@
     `;
 
     document.body.appendChild(ui.panel);
+
+    // Event listener pour minimiser/maximiser
+    document.getElementById('ve-panel-toggle').addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePanelMinimize();
+    });
+
+    // Double-clic sur le header pour minimiser/maximiser
+    document.getElementById('ve-panel-header').addEventListener('dblclick', (e) => {
+      if (e.target.id !== 've-panel-toggle') {
+        togglePanelMinimize();
+      }
+    });
+  }
+
+  /**
+   * Toggle la minimisation du panneau
+   */
+  function togglePanelMinimize() {
+    const body = document.getElementById('ve-panel-body');
+    const toggle = document.getElementById('ve-panel-toggle');
+    const isMinimized = body.style.display === 'none';
+
+    if (isMinimized) {
+      // Maximiser
+      body.style.display = 'block';
+      ui.panel.style.maxHeight = '600px';
+      ui.panel.style.width = '400px';
+      toggle.textContent = '−';
+      toggle.title = 'Minimize';
+    } else {
+      // Minimiser
+      body.style.display = 'none';
+      ui.panel.style.maxHeight = '60px';
+      ui.panel.style.width = 'auto';
+      toggle.textContent = '+';
+      toggle.title = 'Maximize';
+    }
   }
 
   /**
    * Attache les event listeners
    */
   function attachEventListeners() {
-    // Toggle avec Ctrl+E
+    // Raccourcis clavier
     document.addEventListener('keydown', (e) => {
+      // Ctrl+E : Toggle editor
       if (e.ctrlKey && e.key === 'e') {
         e.preventDefault();
         toggleEditor();
+      }
+
+      // Ctrl+Z : Undo
+      if (state.enabled && e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+
+      // Ctrl+Y ou Ctrl+Shift+Z : Redo
+      if (state.enabled && e.ctrlKey && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        redo();
       }
     });
 
     // Boutons toolbar
     document.getElementById('ve-close').addEventListener('click', () => {
       toggleEditor();
+    });
+
+    document.getElementById('ve-undo').addEventListener('click', () => {
+      undo();
+    });
+
+    document.getElementById('ve-redo').addEventListener('click', () => {
+      redo();
     });
 
     document.getElementById('ve-toggle-drag').addEventListener('click', (e) => {
@@ -328,25 +399,60 @@
     const editorContent = document.getElementById('ve-editor-content');
     editorContent.innerHTML = html;
 
-    // Event listeners pour les inputs
+    // Event listeners pour les inputs CSS
     editorContent.querySelectorAll('input[data-css-prop]').forEach(input => {
+      // Stocker la valeur initiale au focus pour pouvoir annuler
+      let oldValue = null;
+
+      input.addEventListener('focus', (e) => {
+        oldValue = element.style[e.target.dataset.cssProp] || window.getComputedStyle(element)[e.target.dataset.cssProp];
+      });
+
+      input.addEventListener('change', (e) => {
+        const prop = e.target.dataset.cssProp;
+        const newValue = e.target.value;
+
+        if (oldValue !== newValue) {
+          recordStyleChange(element, prop, oldValue, newValue);
+        }
+        updateOverlay(ui.selectedOverlay, element);
+      });
+
+      // Appliquer en temps réel mais enregistrer seulement au change
       input.addEventListener('input', (e) => {
         const prop = e.target.dataset.cssProp;
-        const value = e.target.value;
-        element.style[prop] = value;
-        recordModification(element, 'style', prop, value);
+        element.style[prop] = e.target.value;
         updateOverlay(ui.selectedOverlay, element);
       });
     });
 
-    document.getElementById('ve-content').addEventListener('input', (e) => {
-      element.innerHTML = e.target.value;
-      recordModification(element, 'innerHTML', null, e.target.value);
+    // Event listener pour le contenu HTML
+    const contentTextarea = document.getElementById('ve-content');
+    let oldHTML = element.innerHTML;
+
+    contentTextarea.addEventListener('focus', () => {
+      oldHTML = element.innerHTML;
     });
 
+    contentTextarea.addEventListener('change', (e) => {
+      const newHTML = e.target.value;
+      if (oldHTML !== newHTML) {
+        recordHTMLChange(element, oldHTML, newHTML);
+      }
+    });
+
+    contentTextarea.addEventListener('input', (e) => {
+      element.innerHTML = e.target.value;
+    });
+
+    // Event listener pour la suppression
     document.getElementById('ve-delete-element').addEventListener('click', () => {
       if (confirm('Delete this element?')) {
-        recordModification(element, 'deleted', null, null);
+        const parent = element.parentNode;
+        const nextSibling = element.nextSibling;
+
+        recordDeletion(element, parent, nextSibling);
+
         element.remove();
         ui.selectedOverlay.style.display = 'none';
         document.getElementById('ve-editor-content').innerHTML = '<p style="color: #999; font-size: 14px; text-align: center;">Element deleted</p>';
@@ -422,17 +528,28 @@
     if (!target || isEditorElement(target)) return;
 
     if (state.dragElement && target !== state.dragElement && !state.dragElement.contains(target)) {
+      // Sauvegarder la position actuelle pour l'historique
+      const oldParent = state.dragElement.parentNode;
+      const oldNextSibling = state.dragElement.nextSibling;
+
       // Insérer avant ou après selon la position
       const rect = target.getBoundingClientRect();
       const midY = rect.top + rect.height / 2;
 
+      let newParent, newNextSibling;
+
       if (e.clientY < midY) {
         target.parentNode.insertBefore(state.dragElement, target);
+        newParent = target.parentNode;
+        newNextSibling = target;
       } else {
         target.parentNode.insertBefore(state.dragElement, target.nextSibling);
+        newParent = target.parentNode;
+        newNextSibling = target.nextSibling;
       }
 
-      recordModification(state.dragElement, 'moved', null, getElementPath(state.dragElement));
+      // Enregistrer dans l'historique
+      recordMove(state.dragElement, oldParent, oldNextSibling, newParent, newNextSibling);
       console.log('✅ Element moved:', getElementPath(state.dragElement));
 
       // Mettre à jour l'overlay de sélection
@@ -455,15 +572,226 @@
   }
 
   /**
-   * Enregistre une modification
+   * Ajoute une action à l'historique
    */
-  function recordModification(element, type, property, value) {
+  function addToHistory(action) {
+    // Supprimer tout l'historique après l'index actuel (pour les nouveaux chemins après undo)
+    state.history = state.history.slice(0, state.historyIndex + 1);
+
+    // Ajouter la nouvelle action
+    state.history.push(action);
+    state.historyIndex++;
+
+    // Limiter l'historique à 50 actions
+    if (state.history.length > 50) {
+      state.history.shift();
+      state.historyIndex--;
+    }
+
+    updateHistoryUI();
+    console.log('📝 History added:', action.type, '| Index:', state.historyIndex);
+  }
+
+  /**
+   * Met à jour l'interface de l'historique
+   */
+  function updateHistoryUI() {
+    const undoBtn = document.getElementById('ve-undo');
+    const redoBtn = document.getElementById('ve-redo');
+    const undoCount = document.getElementById('ve-undo-count');
+    const redoCount = document.getElementById('ve-redo-count');
+
+    const canUndo = state.historyIndex >= 0;
+    const canRedo = state.historyIndex < state.history.length - 1;
+
+    undoBtn.disabled = !canUndo;
+    redoBtn.disabled = !canRedo;
+
+    undoBtn.style.opacity = canUndo ? '1' : '0.5';
+    redoBtn.style.opacity = canRedo ? '1' : '0.5';
+
+    undoCount.textContent = state.historyIndex + 1;
+    redoCount.textContent = state.history.length - state.historyIndex - 1;
+  }
+
+  /**
+   * Annule la dernière action (Undo)
+   */
+  function undo() {
+    if (state.historyIndex < 0) {
+      console.log('❌ Nothing to undo');
+      return;
+    }
+
+    const action = state.history[state.historyIndex];
+    console.log('↶ Undoing:', action.type);
+
+    // Restaurer l'état précédent
+    applyHistoryAction(action, true);
+
+    state.historyIndex--;
+    updateHistoryUI();
+  }
+
+  /**
+   * Refait la dernière action annulée (Redo)
+   */
+  function redo() {
+    if (state.historyIndex >= state.history.length - 1) {
+      console.log('❌ Nothing to redo');
+      return;
+    }
+
+    state.historyIndex++;
+    const action = state.history[state.historyIndex];
+    console.log('↷ Redoing:', action.type);
+
+    // Appliquer l'action
+    applyHistoryAction(action, false);
+
+    updateHistoryUI();
+  }
+
+  /**
+   * Applique une action de l'historique
+   */
+  function applyHistoryAction(action, isUndo) {
+    const element = action.element;
+
+    switch (action.type) {
+      case 'style':
+        if (isUndo) {
+          element.style[action.property] = action.oldValue;
+        } else {
+          element.style[action.property] = action.newValue;
+        }
+        // Mettre à jour l'overlay si c'est l'élément sélectionné
+        if (state.selectedElement === element) {
+          updateOverlay(ui.selectedOverlay, element);
+          updatePanel(element);
+        }
+        break;
+
+      case 'innerHTML':
+        if (isUndo) {
+          element.innerHTML = action.oldValue;
+        } else {
+          element.innerHTML = action.newValue;
+        }
+        if (state.selectedElement === element) {
+          updatePanel(element);
+        }
+        break;
+
+      case 'moved':
+        if (isUndo) {
+          // Restaurer la position originale
+          action.oldParent.insertBefore(element, action.oldNextSibling);
+        } else {
+          // Refaire le déplacement
+          action.newParent.insertBefore(element, action.newNextSibling);
+        }
+        if (state.selectedElement === element) {
+          updateOverlay(ui.selectedOverlay, element);
+        }
+        break;
+
+      case 'deleted':
+        if (isUndo) {
+          // Restaurer l'élément supprimé
+          action.oldParent.insertBefore(action.element, action.oldNextSibling);
+          console.log('✅ Element restored');
+        } else {
+          // Re-supprimer l'élément
+          action.element.remove();
+          console.log('🗑️ Element re-deleted');
+        }
+        break;
+    }
+  }
+
+  /**
+   * Enregistre une modification de style
+   */
+  function recordStyleChange(element, property, oldValue, newValue) {
+    addToHistory({
+      type: 'style',
+      element: element,
+      property: property,
+      oldValue: oldValue,
+      newValue: newValue,
+      timestamp: new Date().toISOString()
+    });
+
+    // Aussi enregistrer dans les modifications pour l'export
     state.modifications.push({
       timestamp: new Date().toISOString(),
       element: getElementPath(element),
-      type: type,
+      type: 'style',
       property: property,
-      value: value
+      value: newValue
+    });
+  }
+
+  /**
+   * Enregistre une modification de contenu HTML
+   */
+  function recordHTMLChange(element, oldValue, newValue) {
+    addToHistory({
+      type: 'innerHTML',
+      element: element,
+      oldValue: oldValue,
+      newValue: newValue,
+      timestamp: new Date().toISOString()
+    });
+
+    state.modifications.push({
+      timestamp: new Date().toISOString(),
+      element: getElementPath(element),
+      type: 'innerHTML',
+      value: newValue
+    });
+  }
+
+  /**
+   * Enregistre un déplacement d'élément
+   */
+  function recordMove(element, oldParent, oldNextSibling, newParent, newNextSibling) {
+    addToHistory({
+      type: 'moved',
+      element: element,
+      oldParent: oldParent,
+      oldNextSibling: oldNextSibling,
+      newParent: newParent,
+      newNextSibling: newNextSibling,
+      timestamp: new Date().toISOString()
+    });
+
+    state.modifications.push({
+      timestamp: new Date().toISOString(),
+      element: getElementPath(element),
+      type: 'moved',
+      value: getElementPath(element)
+    });
+  }
+
+  /**
+   * Enregistre une suppression d'élément
+   */
+  function recordDeletion(element, parent, nextSibling) {
+    addToHistory({
+      type: 'deleted',
+      element: element,
+      oldParent: parent,
+      oldNextSibling: nextSibling,
+      timestamp: new Date().toISOString()
+    });
+
+    state.modifications.push({
+      timestamp: new Date().toISOString(),
+      element: getElementPath(element),
+      type: 'deleted',
+      value: null
     });
   }
 
