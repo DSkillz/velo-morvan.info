@@ -1,0 +1,392 @@
+Tu es Claude Code, expert en développement web SEO, architecture de contenu et bonnes pratiques d’affiliation Amazon.
+Objectif : générer un projet COMPLET de site web statique, facile à déployer sur n’importe quel hébergement (FTP / Plesk / Apache / Nginx),
+sur le thème : “Vélo dans le Morvan” (site informatif + CTA Amazon contextuels, sobres et conformes).
+
+IMPORTANT — CONTRAINTE TECHNIQUE ABSOLUE
+- AUCUN framework, AUCUN générateur statique :
+  PAS Astro, PAS Eleventy, PAS Hugo, PAS React, PAS Vue, PAS WordPress.
+- HTML + CSS purs.
+- JavaScript AUTORISÉ UNIQUEMENT pour :
+  1) inclure dynamiquement le header et le footer (includes HTML),
+  2) intégrer Google Analytics (GA4) et UNIQUEMENT GA4.
+- AUCUN autre usage de JavaScript (pas d’animations, pas de menu dynamique, pas de ToC auto, pas de trackers, pas d’autres tags).
+- Le site doit fonctionner par simple upload des fichiers (structure de dossiers + fichiers .html + assets).
+- Outils d'automatisation en PYTHON uniquement
+
+APPELS EXTERNES — RÈGLE (CÔTÉ SITE)
+- Autoriser EXCLUSIVEMENT Google Analytics 4 (GA4).
+- Interdire tout autre appel externe côté site (runtime) :
+  - Aucun CSS distant, aucune police distante, aucun JS distant (hors gtag GA4), aucune image distante, aucune API, aucun CDN.
+  - Toutes les ressources (CSS, images, fonts, JS includes) doivent être en local.
+- Concrètement : le SEUL domaine externe autorisé côté site est celui requis par GA4 (googletagmanager.com) + endpoints GA4 nécessaires.
+  Ne charger AUCUN autre script tiers.
+
+NOTE IMPORTANTE (CÔTÉ OUTILS)
+- Les scripts OUTILS (Python) peuvent faire des appels externes pendant la phase de préparation (ex : récupérer des images produit),
+  mais le site déployé ne doit faire aucun appel externe (hors GA4).
+
+CHARTE GRAPHIQUE (OBLIGATOIRE) — TON “NATURE”, AÉRÉ, HARMONIEUX, SENIOR-FRIENDLY
+- Style : nature, apaisant, chaleureux (forêts, lacs), sans agressivité marketing.
+- Lisibilité senior :
+  - Base font-size 18px minimum.
+  - line-height 1.6 à 1.8.
+  - Contraste AA.
+  - Largeur de ligne contrôlée (max ~68ch).
+  - Espacements généreux (padding/margins).
+- Images :
+  - Tous les encarts images + hero-images : border-radius: 20px (toujours, sans exception).
+  - Ombre/bordure douce et subtile.
+- Prévoir des encarts images (placeholders locaux) sur pages clés :
+  - HERO avec hero-image sur : Accueil + Découvrir + Randonnées + Entretien + Équipement.
+  - 1 encart image minimum sur chaque fiche rando.
+  - Images locales uniquement, alt descriptif, width/height renseignés.
+
+POLICES — TOUT EN LOCAL
+- Utiliser “Crimson Pro” en local (pas via Google Fonts).
+- Fournir fichiers WOFF2 dans /assets/fonts/crimson-pro/ :
+  - Regular, Italic, SemiBold, Bold (au minimum).
+- Déclarer @font-face dans style.css (sources locales uniquement).
+- Prévoir fallbacks serif.
+
+INCLUDES OBLIGATOIRES (HEADER / FOOTER)
+- Créer :
+  /partials/header.html
+  /partials/footer.html
+- Chaque page HTML DOIT charger ces includes via un script local minimal :
+  /assets/js/includes.js
+- includes.js doit uniquement :
+  - injecter header.html et footer.html,
+  - (option) initialiser GA4 si tu choisis de centraliser l’initialisation.
+- Aucun autre JS autorisé.
+
+GOOGLE ANALYTICS (GA4) — OBLIGATOIRE ET EXCLUSIF
+- Intégrer GA4 sur toutes les pages.
+- Utiliser un Measurement ID placeholder : G-XXXXXXXXXX.
+- Charger gtag.js en async via :
+  https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX
+- Ajouter le script de configuration gtag :
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-XXXXXXXXXX', { anonymize_ip: true });
+- Respecter performance : async + scripts en bas ou defer.
+- Ajouter une mention dans README comment remplacer G-XXXXXXXXXX.
+- Ne pas ajouter de cookies banner (non demandé), mais garder l’intégration simple et standard.
+
+IMAGES — OBLIGATOIRE : WEBP 85%
+- Toutes les images du projet doivent être en .webp (y compris og, hero, placeholders, images produits).
+- Qualité d’export : WEBP qualité 85% (sauf icônes vectorielles éventuelles en SVG inline).
+- Fournir des images placeholders locales en WEBP 85% :
+  - og-placeholder.webp
+  - hero-morvan-1.webp, hero-morvan-2.webp
+  - rando-placeholder-1.webp, rando-placeholder-2.webp
+  - product-placeholder.webp (fallback produits)
+- Chaque <img> doit inclure width/height, loading="lazy" (sauf hero), decoding="async".
+
+STRUCTURE DU PROJET (FICHIERS & DOSSIERS)
+(site prêt à déployer ; tout local sauf GA4)
+
+/
+├── index.html
+├── assets
+│   ├── css
+│   │   └── style.css
+│   ├── js
+│   │   └── includes.js
+│   ├── img
+│   │   ├── og-placeholder.webp
+│   │   ├── hero-morvan-1.webp
+│   │   ├── hero-morvan-2.webp
+│   │   ├── rando-placeholder-1.webp
+│   │   ├── rando-placeholder-2.webp
+│   │   ├── product-placeholder.webp
+│   │   └── products
+│   │       └── (images produits locales) {ASIN}.webp
+│   └── fonts
+│       └── crimson-pro
+│           ├── CrimsonPro-Regular.woff2
+│           ├── CrimsonPro-Italic.woff2
+│           ├── CrimsonPro-SemiBold.woff2
+│           └── CrimsonPro-Bold.woff2
+├── partials
+│   ├── header.html
+│   └── footer.html
+├── decouvrir
+│   ├── index.html
+│   ├── pourquoi-velo-morvan/index.html
+│   ├── relief-chemins/index.html
+│   ├── choisir-son-velo/index.html
+│   ├── route-vtt-vae/index.html
+│   ├── quand-venir/index.html
+│   └── securite-bonnes-pratiques/index.html
+├── randonnees
+│   ├── index.html
+│   ├── balades-tranquilles
+│   │   ├── index.html
+│   │   ├── faciles/index.html
+│   │   ├── seniors/index.html
+│   │   ├── famille/index.html
+│   │   └── autour-saint-honore/index.html
+│   ├── vtt
+│   │   ├── index.html
+│   │   ├── debutant/index.html
+│   │   ├── intermediaire/index.html
+│   │   ├── sportif/index.html
+│   │   └── foret-morvan/index.html
+│   ├── vae
+│   │   ├── index.html
+│   │   ├── itineraires-accessibles/index.html
+│   │   ├── autonomie-denivele/index.html
+│   │   └── conseils-pratiques/index.html
+│   ├── par-zone
+│   │   ├── index.html
+│   │   ├── lacs/index.html
+│   │   ├── villages/index.html
+│   │   └── panoramiques/index.html
+│   └── fiche
+│       ├── exemple-boucle-saint-honore/index.html
+│       └── exemple-lac-foret/index.html
+├── entretien
+│   ├── index.html
+│   ├── apres-sortie-boueuse/index.html
+│   ├── nettoyage-chaine/index.html
+│   ├── lubrification/index.html
+│   ├── verifier-freins-pneus/index.html
+│   ├── pression-pneus/index.html
+│   └── preparer-avant-rando/index.html
+├── equipement
+│   ├── index.html
+│   ├── essentiel
+│   │   ├── index.html
+│   │   ├── casques/index.html
+│   │   ├── gants-protections/index.html
+│   │   ├── eclairage-visibilite/index.html
+│   │   └── antivols/index.html
+│   ├── accessoires
+│   │   ├── index.html
+│   │   ├── sacoches/index.html
+│   │   ├── support-smartphone-gps/index.html
+│   │   ├── compteurs/index.html
+│   │   └── pompes-kits-reparation/index.html
+│   └── vetements
+│       ├── index.html
+│       ├── mi-saison/index.html
+│       ├── pluie/index.html
+│       └── froid-vent/index.html
+├── sejour
+│   ├── index.html
+│   ├── organiser/index.html
+│   ├── velo-et-cure-thermale/index.html
+│   ├── velo-et-bien-etre/index.html
+│   ├── louer-un-velo/index.html
+│   └── week-end-velo/index.html
+├── blog
+│   ├── index.html
+│   ├── erreurs-a-eviter-rando-velo/index.html
+│   ├── bien-debuter-velo-morvan/index.html
+│   └── velo-meteo-conseils/index.html
+├── a-propos/index.html
+├── contact/index.html
+├── mentions-legales/index.html
+├── politique-affiliation-amazon/index.html
+├── robots.txt
+├── sitemap.xml
+├── README.md
+└── data
+    ├── amazon.json
+    └── amazon.enriched.json (généré par script)
+
+STRUCTURE HTML OBLIGATOIRE (CHAQUE PAGE)
+Chaque page DOIT être complète et autonome (sans build), et respecter :
+
+1) HEAD — SEO + OG + TW (OBLIGATOIRE)
+- <title> unique : inclure “Morvan” + intention (ex: “Randonnées VTT dans le Morvan – Idées et niveaux”)
+- <meta name="description"> unique
+- <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+- OpenGraph :
+  og:type = website (listings) / article (blog et fiches)
+  og:title, og:description, og:url, og:image (local), og:locale=fr_FR
+  og:image:width + og:image:height (valeurs cohérentes)
+- Twitter :
+  twitter:card=summary_large_image
+  twitter:title, twitter:description, twitter:image (local)
+
+2) JSON-LD (OBLIGATOIRE)
+- BreadcrumbList sur TOUTES les pages.
+- Article sur blog + pages conseils (découvrir, entretien).
+- FAQPage uniquement si mini-FAQ présente (3 Q/R).
+
+3) BODY — structure fixe
+<body>
+  <header data-include="header"></header>
+
+  <nav class="breadcrumbs" aria-label="Fil d’Ariane">...</nav>
+
+  <main>
+    (Pages piliers) HERO :
+      - h1
+      - sous-titre (1 phrase)
+      - <figure class="hero-figure">
+          <img class="hero-image" src="/assets/img/hero-morvan-1.webp" ...>
+        </figure>
+      - border-radius 20px garanti via CSS
+
+    Intro 80–150 mots.
+    Sections H2/H3.
+    Liste de conseils.
+    Encarts image (au moins 1 sur pages piliers).
+    Section “Pour aller plus loin” : 3 liens internes pertinents.
+  </main>
+
+  <footer data-include="footer"></footer>
+
+  <!-- Include header/footer -->
+  <script src="/assets/js/includes.js" defer></script>
+
+  <!-- GA4 (le seul appel externe autorisé côté site) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX', { anonymize_ip: true });
+  </script>
+</body>
+
+CONTENU MINIMAL MAIS “VRAI”
+- Aucun lorem ipsum.
+- Chaque page : H1, intro 80–150 mots, H2/H3, liste de conseils.
+- Pages rando : bloc fiche technique (distance, dénivelé, durée, niveau, terrain, saison, points d’attention, variantes).
+- Disclaimer sur pages rando :
+  “Informations indicatives, à vérifier sur le terrain.”
+- Maillage interne : 3 liens internes minimum par page (Pour aller plus loin).
+- Breadcrumbs partout.
+
+STRATÉGIE CTA AMAZON (PROPRE & SAFE) + IMAGES LOCALES
+Règles de base :
+- 1 à 3 CTA max par page.
+- Jamais en haut de page.
+- Contextualisation obligatoire (répondre à un besoin).
+- Pas de prix, pas de “le meilleur”, pas de faux avis.
+- Liens : rel="nofollow sponsored" + target="_blank".
+- Page /politique-affiliation-amazon/ :
+  “Ce site participe au Programme Partenaires Amazon…”
+- Ajouter sous les CTA :
+  “Vérifie les disponibilités et compatibilités.”
+
+1) Data produits
+- /data/amazon.json doit contenir au minimum par produit :
+  { slug, title, asin, tag, marketplace, usage, tags }
+  - marketplace ex: "FR"
+  - tag ex: "VOTRETAG-21"
+- Ne pas inventer de vrais ASIN si tu n’en as pas : utiliser des ASIN placeholders (ex: "B0XXXXXXXXX") et documenter.
+
+2) URL affiliée (obligatoire)
+- Générer l’URL d’affiliation standard à partir de asin + tag :
+  https://www.amazon.fr/dp/{ASIN}/?tag={TAG}
+
+3) Images produit locales (obligatoire)
+- Les images produit affichées sur le site doivent être locales :
+  /assets/img/products/{ASIN}.webp
+- Si l’image manque, fallback :
+  /assets/img/product-placeholder.webp
+- Toutes les images produit sont WEBP qualité 85%.
+
+4) Bloc CTA (pattern unique)
+- Le CTA doit pouvoir afficher une image locale (si présente) :
+  - image en 20px radius
+  - alt pertinent
+  - layout “nature”, aéré, lisible senior
+- Exemple de structure attendue (adapter au design final) :
+  <aside class="cta-amazon">
+    <img class="cta-amazon__img" src="/assets/img/products/ASIN.webp" ...>
+    <div class="cta-amazon__content">
+      <h3>...</h3>
+      <ul>...</ul>
+      <a ... rel="nofollow sponsored" target="_blank">Voir sur Amazon</a>
+      <p class="cta-amazon__note">Lien partenaire Amazon. Vérifie les compatibilités.</p>
+    </div>
+  </aside>
+
+SCRIPTS D'AUTOMATISATION EN PYTHON UNIQUEMENT
+
+SCRIPT PYTHON OBLIGATOIRE — SYNCHRO ASSETS AMAZON (OUTIL)
+- Créer un dossier outils :
+  /tools
+    └── amazon_assets_sync.py
+
+Objectif du script :
+- Lire /data/amazon.json
+- Pour chaque produit :
+  - Construire affiliate_url : https://www.amazon.fr/dp/{asin}/?tag=jack59-21
+  - Récupérer l’image principale du produit via une source AMAZON avec scraping le plus efficace.
+    (Le script est un outil offline, donc les appels externes sont autorisés côté outil.)
+  - Télécharger l’image en local
+  - Convertir en WEBP qualité 85%
+  - Écrire dans /assets/img/products/{asin}.webp
+- Générer /data/amazon.enriched.json contenant :
+  { slug, title, asin, affiliate_url, local_image, usage, tags }
+
+Contraintes du script :
+- Autorisation : scraping de pages Amazon HTML.
+- Le script doit :
+  - gérer les erreurs proprement (passer au produit suivant de la recherche de produit)
+  - conserver un fallback /assets/img/product-placeholder.webp
+  - être idempotent (ne retélécharge pas si le fichier existe, sauf flag --force)
+- Le script doit fournir une GUI avec logs détaillés au maximum :
+  - python tools/amazon_assets_sync.py
+- Dépendances Python :
+  - installation automatique des dépendances
+  - utiliser requests + pillow (PIL) pour conversion webp
+  - fournir requirements.txt dans /tools/requirements.txt
+- Documenter dans README :
+  - installation : pip install -r tools/requirements.txt
+  - comment lancer le script
+  - rappel : le site final ne fait aucun appel externe (hors GA4).
+
+CSS (OBLIGATOIRE)
+- /assets/css/style.css :
+  - Déclarer @font-face Crimson Pro (local).
+  - Thème nature (variables CSS).
+  - Base 18px min, line-height 1.6–1.8.
+  - Layout aéré, container max-width confortable.
+  - Tous les blocs images (hero, cards, figures, CTA produit) en border-radius:20px.
+  - Cartes avec bordure douce + ombre légère.
+
+INCLUDES (OBLIGATOIRE)
+- /partials/header.html :
+  - Logo texte “Vélo Morvan”
+  - Menu : Découvrir, Randonnées, Entretien, Équipement, Séjour, Blog
+- /partials/footer.html :
+  - navigation + liens légaux + mention affiliation
+- /assets/js/includes.js :
+  - injecter header/footer uniquement (aucune autre logique)
+
+SEO TECHNIQUE (OBLIGATOIRE)
+- Générer robots.txt (autoriser indexation + lien vers sitemap.xml).
+- Générer sitemap.xml listant toutes les URLs.
+- Vérifier cohérence des liens internes et des URLs.
+
+LIVRABLES
+- Tous les fichiers HTML/CSS/JS + images WEBP 85% + fonts locales.
+- README.md :
+  - déploiement FTP
+  - structure du site
+  - comment ajouter une page/rando/CTA
+  - comment remplacer G-XXXXXXXXXX
+  - comment utiliser tools/amazon_assets_sync.py
+  - rappel : “Seul GA4 est externe côté site, tout le reste est local”
+
+AUCUNE ÉTAPE DE BUILD.
+AUCUN AUTRE APPEL EXTERNE CÔTÉ SITE QUE GA4.
+
+Exécute dans cet ordre :
+1) style.css (charte nature + senior-friendly + border-radius images 20px)
+2) fonts locales @font-face
+3) header.html / footer.html
+4) includes.js (includes uniquement)
+5) modèle de page HTML (avec head SEO/OG/TW + GA4)
+6) générer toutes les pages demandées + contenu + maillage interne
+7) data/amazon.json
+8) tools/amazon_assets_sync.py + tools/requirements.txt
+9) sitemap.xml et robots.txt en dernier

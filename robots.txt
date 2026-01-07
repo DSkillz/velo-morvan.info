@@ -1,0 +1,12 @@
+# robots.txt - Vélo Morvan
+
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://www.votredomaine.fr/sitemap.xml
+
+# Fichiers à ne pas indexer
+Disallow: /assets/
+Disallow: /partials/
+Disallow: /data/

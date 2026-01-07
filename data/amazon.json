@@ -1,0 +1,110 @@
+[
+  {
+    "slug": "casque-vtt-adulte",
+    "title": "Casque VTT adulte polyvalent",
+    "asin": "B0PLACEHOLDER1",
+    "tag": "jack59-21",
+    "marketplace": "FR",
+    "usage": "Protection renforcée pour VTT et chemins forestiers du Morvan",
+    "tags": ["casque", "vtt", "securite", "essentiel"]
+  },
+  {
+    "slug": "gants-velo-toutes-saisons",
+    "title": "Gants de vélo toutes saisons",
+    "asin": "B0PLACEHOLDER2",
+    "tag": "jack59-21",
+    "marketplace": "FR",
+    "usage": "Gants confortables avec bonne adhérence, adaptés aux sorties dans le Morvan",
+    "tags": ["gants", "accessoires", "confort", "essentiel"]
+  },
+  {
+    "slug": "eclairage-led-avant-arriere",
+    "title": "Ensemble éclairage LED avant et arrière",
+    "asin": "B0PLACEHOLDER3",
+    "tag": "jack59-21",
+    "marketplace": "FR",
+    "usage": "Visibilité optimale en forêt et sur routes secondaires, rechargeable USB",
+    "tags": ["eclairage", "securite", "visibilite", "essentiel"]
+  },
+  {
+    "slug": "sacoche-selle-etanche",
+    "title": "Sacoche de selle étanche",
+    "asin": "B0PLACEHOLDER4",
+    "tag": "jack59-21",
+    "marketplace": "FR",
+    "usage": "Sacoche compacte et étanche pour transporter kit de réparation et en-cas",
+    "tags": ["sacoche", "accessoires", "pratique", "rangement"]
+  },
+  {
+    "slug": "pompe-velo-portable",
+    "title": "Pompe à vélo portable avec manomètre",
+    "asin": "B0PLACEHOLDER5",
+    "tag": "jack59-21",
+    "marketplace": "FR",
+    "usage": "Pompe légère et efficace pour regonfler pneus route et VTT, indispensable en rando",
+    "tags": ["pompe", "reparation", "accessoires", "essentiel"]
+  },
+  {
+    "slug": "kit-reparation-velo",
+    "title": "Kit de réparation vélo complet",
+    "asin": "B0PLACEHOLDER6",
+    "tag": "jack59-21",
+    "marketplace": "FR",
+    "usage": "Multi-outils, démonte-pneus, rustines et chambre à air de secours",
+    "tags": ["reparation", "outils", "accessoires", "essentiel"]
+  },
+  {
+    "slug": "antivol-u-solide",
+    "title": "Antivol en U haute sécurité",
+    "asin": "B0PLACEHOLDER7",
+    "tag": "jack59-21",
+    "marketplace": "FR",
+    "usage": "Antivol robuste pour sécuriser son vélo lors des pauses en village",
+    "tags": ["antivol", "securite", "essentiel"]
+  },
+  {
+    "slug": "veste-pluie-cycliste",
+    "title": "Veste imperméable cycliste respirante",
+    "asin": "B0PLACEHOLDER8",
+    "tag": "jack59-21",
+    "marketplace": "FR",
+    "usage": "Protection contre la pluie morvandelle, respirante et compacte",
+    "tags": ["vetements", "pluie", "impermeable", "confort"]
+  },
+  {
+    "slug": "support-smartphone-velo",
+    "title": "Support smartphone étanche pour guidon",
+    "asin": "B0PLACEHOLDER9",
+    "tag": "jack59-21",
+    "marketplace": "FR",
+    "usage": "Fixation sécurisée pour suivre itinéraires GPS sur smartphone",
+    "tags": ["support", "gps", "accessoires", "navigation"]
+  },
+  {
+    "slug": "compteur-velo-sans-fil",
+    "title": "Compteur vélo sans fil avec GPS",
+    "asin": "B0PLACEHOLDER10",
+    "tag": "jack59-21",
+    "marketplace": "FR",
+    "usage": "Suivi de distance, dénivelé et vitesse pour vos randonnées Morvan",
+    "tags": ["compteur", "gps", "accessoires", "performance"]
+  },
+  {
+    "slug": "bidon-velo-isolant",
+    "title": "Bidon vélo isotherme 750ml",
+    "asin": "B0PLACEHOLDER11",
+    "tag": "jack59-21",
+    "marketplace": "FR",
+    "usage": "Garde vos boissons fraîches pendant les longues sorties estivales",
+    "tags": ["bidon", "hydratation", "accessoires"]
+  },
+  {
+    "slug": "lunettes-velo-uv",
+    "title": "Lunettes de vélo protection UV",
+    "asin": "B0PLACEHOLDER12",
+    "tag": "jack59-21",
+    "marketplace": "FR",
+    "usage": "Protection solaire et anti-poussière pour sorties en forêt",
+    "tags": ["lunettes", "protection", "accessoires", "confort"]
+  }
+]
