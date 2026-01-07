@@ -12,7 +12,7 @@
     overlayBorder: '2px solid #2196F3',
     selectedColor: 'rgba(76, 175, 80, 0.3)',
     selectedBorder: '3px solid #4CAF50',
-    excludeSelectors: ['.visual-editor-overlay', '.visual-editor-panel', '.visual-editor-toolbar', '.ve-drop-indicator']
+    excludeSelectors: ['.visual-editor-overlay', '.visual-editor-panel', '.visual-editor-toolbar', '.visual-editor-dom-inspector', '.ve-drop-indicator', '.ve-dom-node']
   };
 
   // État global
@@ -32,7 +32,8 @@
     overlay: null,
     selectedOverlay: null,
     panel: null,
-    toolbar: null
+    toolbar: null,
+    domInspector: null
   };
 
   /**
@@ -42,6 +43,7 @@
     createOverlays();
     createToolbar();
     createPanel();
+    createDOMInspector();
     attachEventListeners();
     console.log('🎨 Visual Editor initialized! Press Ctrl+E to toggle.');
   }
@@ -110,6 +112,9 @@
       </button>
       <button id="ve-redo" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-weight: 600;" disabled title="Redo (Ctrl+Y)">
         ↷ <span id="ve-redo-count">0</span>
+      </button>
+      <button id="ve-toggle-dom" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-weight: 600;" title="Toggle DOM Inspector">
+        🌳 DOM
       </button>
       <button id="ve-toggle-drag" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-weight: 600;">
         🔒 Drag OFF
@@ -205,6 +210,186 @@
   }
 
   /**
+   * Crée le panneau DOM Inspector
+   */
+  function createDOMInspector() {
+    ui.domInspector = document.createElement('div');
+    ui.domInspector.className = 'visual-editor-panel visual-editor-dom-inspector';
+    ui.domInspector.style.cssText = `
+      position: fixed;
+      top: 70px;
+      left: 10px;
+      width: 350px;
+      max-height: 80vh;
+      z-index: 1000000;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+    `;
+
+    ui.domInspector.innerHTML = `
+      <div style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); padding: 12px 16px; color: white; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 16px;">🌳</span>
+          <span style="font-weight: 600;">DOM Inspector</span>
+        </div>
+        <button id="ve-dom-refresh" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Refresh">
+          ↻
+        </button>
+      </div>
+      <div id="ve-dom-tree" style="overflow-y: auto; flex: 1; padding: 8px; background: #fafafa;">
+        <div style="color: #999; text-align: center; padding: 20px;">Building tree...</div>
+      </div>
+    `;
+
+    document.body.appendChild(ui.domInspector);
+
+    // Event listener pour refresh
+    document.getElementById('ve-dom-refresh').addEventListener('click', () => {
+      refreshDOMTree();
+    });
+  }
+
+  /**
+   * Construit l'arborescence DOM récursivement
+   */
+  function buildDOMTree(element, depth = 0) {
+    if (!element || isEditorElement(element)) return '';
+
+    const tagName = element.tagName.toLowerCase();
+    const id = element.id ? `#${element.id}` : '';
+    const classes = element.className ? `.${element.className.split(' ').filter(c => !c.startsWith('visual-editor')).join('.')}` : '';
+    const hasChildren = element.children.length > 0;
+    const isSelected = element === state.selectedElement;
+
+    const indent = depth * 16;
+    const elementId = `dom-node-${Math.random().toString(36).substr(2, 9)}`;
+
+    let html = `
+      <div class="ve-dom-node ${isSelected ? 'selected' : ''}"
+           data-element-id="${elementId}"
+           draggable="true"
+           style="
+             padding: 4px 8px;
+             margin-left: ${indent}px;
+             cursor: pointer;
+             border-radius: 4px;
+             background: ${isSelected ? '#e3f2fd' : 'transparent'};
+             border-left: 2px solid ${isSelected ? '#2196F3' : 'transparent'};
+             user-select: none;
+             transition: background 0.1s;
+           "
+           onmouseover="this.style.background='#f0f0f0'"
+           onmouseout="this.style.background='${isSelected ? '#e3f2fd' : 'transparent'}'">
+        <span style="color: #666;">${hasChildren ? '▼' : '  '}</span>
+        <span style="color: #1976d2; font-weight: bold;">&lt;${tagName}</span>
+        <span style="color: #388e3c;">${id}</span>
+        <span style="color: #f57c00;">${classes}</span>
+        <span style="color: #1976d2; font-weight: bold;">&gt;</span>
+      </div>
+    `;
+
+    // Stocker la référence élément <-> ID
+    if (!window.veElementMap) window.veElementMap = new Map();
+    window.veElementMap.set(elementId, element);
+
+    // Ajouter les enfants
+    if (hasChildren) {
+      for (let child of element.children) {
+        html += buildDOMTree(child, depth + 1);
+      }
+    }
+
+    return html;
+  }
+
+  /**
+   * Rafraîchit l'arborescence DOM
+   */
+  function refreshDOMTree() {
+    const treeContainer = document.getElementById('ve-dom-tree');
+    if (!treeContainer) return;
+
+    treeContainer.innerHTML = buildDOMTree(document.body, 0);
+
+    // Attacher les event listeners aux nœuds
+    treeContainer.querySelectorAll('.ve-dom-node').forEach(node => {
+      const elementId = node.getAttribute('data-element-id');
+      const element = window.veElementMap.get(elementId);
+
+      if (!element) return;
+
+      // Clic pour sélectionner
+      node.addEventListener('click', (e) => {
+        e.stopPropagation();
+        state.selectedElement = element;
+        updateOverlay(ui.selectedOverlay, element);
+        updatePanel(element);
+        refreshDOMTree();
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+
+      // Drag & Drop dans l'arborescence
+      node.addEventListener('dragstart', (e) => {
+        e.stopPropagation();
+        state.dragElement = element;
+        node.style.opacity = '0.5';
+        e.dataTransfer.effectAllowed = 'move';
+        console.log('🌳 Drag started from DOM tree:', element.tagName);
+      });
+
+      node.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        node.style.background = '#c8e6c9';
+      });
+
+      node.addEventListener('dragleave', (e) => {
+        e.stopPropagation();
+        node.style.background = element === state.selectedElement ? '#e3f2fd' : 'transparent';
+      });
+
+      node.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        node.style.background = element === state.selectedElement ? '#e3f2fd' : 'transparent';
+
+        if (state.dragElement && state.dragElement !== element && !state.dragElement.contains(element)) {
+          // Sauvegarder pour l'historique
+          const oldParent = state.dragElement.parentNode;
+          const oldNextSibling = state.dragElement.nextSibling;
+
+          // Déplacer l'élément
+          element.appendChild(state.dragElement);
+
+          const newParent = element;
+          const newNextSibling = null;
+
+          recordMove(state.dragElement, oldParent, oldNextSibling, newParent, newNextSibling);
+
+          console.log('✅ Element moved in DOM tree');
+          refreshDOMTree();
+
+          if (state.selectedElement === state.dragElement) {
+            updateOverlay(ui.selectedOverlay, state.dragElement);
+          }
+        }
+      });
+
+      node.addEventListener('dragend', (e) => {
+        e.stopPropagation();
+        node.style.opacity = '';
+        state.dragElement = null;
+      });
+    });
+  }
+
+  /**
    * Attache les event listeners
    */
   function attachEventListeners() {
@@ -240,6 +425,10 @@
 
     document.getElementById('ve-redo').addEventListener('click', () => {
       redo();
+    });
+
+    document.getElementById('ve-toggle-dom').addEventListener('click', () => {
+      toggleDOMInspector();
     });
 
     document.getElementById('ve-toggle-drag').addEventListener('click', (e) => {
@@ -456,6 +645,11 @@
         element.remove();
         ui.selectedOverlay.style.display = 'none';
         document.getElementById('ve-editor-content').innerHTML = '<p style="color: #999; font-size: 14px; text-align: center;">Element deleted</p>';
+
+        // Mettre à jour le DOM Inspector
+        if (ui.domInspector.style.display === 'flex') {
+          refreshDOMTree();
+        }
       }
     });
   }
@@ -555,6 +749,11 @@
       // Mettre à jour l'overlay de sélection
       if (state.selectedElement === state.dragElement) {
         updateOverlay(ui.selectedOverlay, state.dragElement);
+      }
+
+      // Mettre à jour le DOM Inspector
+      if (ui.domInspector.style.display === 'flex') {
+        refreshDOMTree();
       }
     }
   }
@@ -888,6 +1087,20 @@
   }
 
   /**
+   * Toggle le DOM Inspector
+   */
+  function toggleDOMInspector() {
+    const isVisible = ui.domInspector.style.display === 'flex';
+
+    if (isVisible) {
+      ui.domInspector.style.display = 'none';
+    } else {
+      ui.domInspector.style.display = 'flex';
+      refreshDOMTree();
+    }
+  }
+
+  /**
    * Toggle l'éditeur
    */
   function toggleEditor() {
@@ -900,6 +1113,7 @@
     } else {
       ui.toolbar.style.display = 'none';
       ui.panel.style.display = 'none';
+      ui.domInspector.style.display = 'none';
       ui.overlay.style.display = 'none';
       ui.selectedOverlay.style.display = 'none';
       document.body.style.cursor = '';
