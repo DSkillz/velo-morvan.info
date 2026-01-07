@@ -89,7 +89,7 @@
   <div class="instructions">
     <p><strong>Faites glisser ce bouton dans votre barre de favoris :</strong></p>
 
-    <a href="javascript:(function(){if(window.VisualEditorLoaded){alert('Visual Editor déjà chargé!');return;}window.VisualEditorLoaded=true;var s=document.createElement('script');s.src='https://raw.githubusercontent.com/DSkillz/velo-morvan.info/dev/assets/js/visual-editor.js';s.onload=function(){console.log('🎨 Visual Editor loaded! Press Ctrl+E');};document.head.appendChild(s);})();" class="bookmarklet">
+    <a href="javascript:(function(){if(window.VisualEditorLoaded){alert('Visual Editor déjà chargé!');return;}var url=prompt('URL du serveur Visual Editor:','http://127.0.0.1:5500/assets/js/visual-editor.js');if(!url)return;window.VisualEditorLoaded=true;var s=document.createElement('script');s.src=url;s.onload=function(){console.log('🎨 Visual Editor loaded! Press Ctrl+E');};s.onerror=function(){alert('❌ Erreur de chargement. Vérifiez l\\'URL.');window.VisualEditorLoaded=false;};document.head.appendChild(s);})();" class="bookmarklet">
       🎨 Visual Editor
     </a>
 
@@ -203,18 +203,30 @@
       <li>Nommez-le "🎨 Visual Editor"</li>
       <li>Copiez-collez ce code dans le champ URL :</li>
     </ol>
-    <textarea readonly style="width: 100%; height: 150px; font-family: monospace; font-size: 12px; padding: 10px; margin: 10px 0;">javascript:(function(){if(window.VisualEditorLoaded){alert('Visual Editor déjà chargé!');return;}window.VisualEditorLoaded=true;var s=document.createElement('script');s.src='https://raw.githubusercontent.com/DSkillz/velo-morvan.info/dev/assets/js/visual-editor.js';s.onload=function(){console.log('🎨 Visual Editor loaded! Press Ctrl+E');};document.head.appendChild(s);})();</textarea>
+    <textarea readonly style="width: 100%; height: 150px; font-family: monospace; font-size: 12px; padding: 10px; margin: 10px 0;">javascript:(function(){if(window.VisualEditorLoaded){alert('Visual Editor déjà chargé!');return;}var url=prompt('URL du serveur Visual Editor:','http://127.0.0.1:5500/assets/js/visual-editor.js');if(!url)return;window.VisualEditorLoaded=true;var s=document.createElement('script');s.src=url;s.onload=function(){console.log('🎨 Visual Editor loaded! Press Ctrl+E');};s.onerror=function(){alert('❌ Erreur de chargement. Vérifiez l\'URL.');window.VisualEditorLoaded=false;};document.head.appendChild(s);})();</textarea>
   </div>
 
   <h2>💻 Pour les développeurs</h2>
 
   <p>Vous pouvez aussi charger l'éditeur via la console du navigateur (<code>F12</code>) :</p>
 
-  <textarea readonly style="width: 100%; height: 100px; font-family: monospace; font-size: 12px; padding: 10px; margin: 10px 0;">(function(){
+  <textarea readonly style="width: 100%; height: 120px; font-family: monospace; font-size: 12px; padding: 10px; margin: 10px 0;">(function(){
+  var url = prompt('URL du serveur:', 'http://127.0.0.1:5500/assets/js/visual-editor.js');
+  if (!url) return;
   var s = document.createElement('script');
-  s.src = 'https://raw.githubusercontent.com/DSkillz/velo-morvan.info/dev/assets/js/visual-editor.js';
+  s.src = url;
+  s.onload = function() { console.log('✅ Loaded! Press Ctrl+E'); };
+  s.onerror = function() { alert('❌ Erreur de chargement'); };
   document.head.appendChild(s);
 })();</textarea>
+
+  <h3>URL par défaut selon votre serveur :</h3>
+  <ul>
+    <li><strong>VS Code Live Server :</strong> <code>http://127.0.0.1:5500/assets/js/visual-editor.js</code></li>
+    <li><strong>Python http.server :</strong> <code>http://localhost:8000/assets/js/visual-editor.js</code></li>
+    <li><strong>Node http-server :</strong> <code>http://localhost:8080/assets/js/visual-editor.js</code></li>
+    <li><strong>Production (GitHub) :</strong> <code>https://raw.githubusercontent.com/DSkillz/velo-morvan.info/dev/assets/js/visual-editor.js</code></li>
+  </ul>
 
   <h2>📚 Documentation complète</h2>
 
