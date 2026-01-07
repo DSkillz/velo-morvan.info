@@ -27,7 +27,9 @@
     historyIndex: -1,
     insertMode: null, // null | 'frame' | 'text' | 'button' | 'image' | 'input' | 'link'
     insertStartPos: null,
-    insertPreview: null
+    insertPreview: null,
+    clipboard: null, // Élément copié
+    multiSelection: [] // Multi-sélection (Ctrl+Click)
   };
 
   // Éléments UI
@@ -39,8 +41,12 @@
     insertToolbar: null,
     domInspector: null,
     resizeHandles: null,
-    boxModelOverlay: null
+    boxModelOverlay: null,
+    distanceMeasure: null
   };
+
+  // État pour Alt key
+  let isAltPressed = false;
 
   // Templates d'éléments pré-stylés
   const TEMPLATES = {
@@ -1213,6 +1219,129 @@
   }
 
   /**
+   * Convertit RGB/RGBA en hexadécimal
+   */
+  function rgbToHex(rgb) {
+    if (!rgb) return '#000000';
+
+    // Si déjà en hexa
+    if (rgb.startsWith('#')) return rgb;
+
+    // Extraire les valeurs RGB
+    const match = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (!match) return '#000000';
+
+    const r = parseInt(match[1]);
+    const g = parseInt(match[2]);
+    const b = parseInt(match[3]);
+
+    return '#' + [r, g, b].map(x => {
+      const hex = x.toString(16);
+      return hex.length === 1 ? '0' + hex : hex;
+    }).join('');
+  }
+
+  /**
+   * Copie l'élément sélectionné
+   */
+  function copyElement() {
+    if (!state.selectedElement) {
+      console.warn('No element selected to copy');
+      return;
+    }
+
+    // Cloner l'élément avec tous ses attributs et styles
+    state.clipboard = {
+      element: state.selectedElement.cloneNode(true),
+      computedStyles: window.getComputedStyle(state.selectedElement),
+      tag: state.selectedElement.tagName.toLowerCase()
+    };
+
+    console.log(`📋 Copied: ${state.clipboard.tag}`);
+  }
+
+  /**
+   * Colle l'élément copié
+   */
+  function pasteElement() {
+    if (!state.clipboard) {
+      console.warn('Clipboard is empty');
+      return;
+    }
+
+    if (!state.selectedElement) {
+      console.warn('No element selected to paste into');
+      return;
+    }
+
+    // Cloner l'élément du clipboard
+    const newElement = state.clipboard.element.cloneNode(true);
+
+    // Trouver le parent où coller
+    const parent = state.selectedElement.parentNode || document.body;
+
+    // Insérer après l'élément sélectionné
+    parent.insertBefore(newElement, state.selectedElement.nextSibling);
+
+    // Enregistrer dans l'historique
+    recordInsertion(newElement, parent);
+
+    // Sélectionner l'élément collé
+    state.selectedElement = newElement;
+    updateOverlay(ui.selectedOverlay, newElement);
+    updatePanel(newElement);
+    updateAllOverlays(newElement);
+
+    // Rafraîchir le DOM Inspector si ouvert
+    if (ui.domInspector.style.display === 'flex') {
+      refreshDOMTree();
+    }
+
+    console.log(`✅ Pasted: ${state.clipboard.tag}`);
+  }
+
+  /**
+   * Duplique l'élément sélectionné (Ctrl+D)
+   */
+  function duplicateElement() {
+    if (!state.selectedElement) {
+      console.warn('No element selected to duplicate');
+      return;
+    }
+
+    // Cloner l'élément
+    const clone = state.selectedElement.cloneNode(true);
+    const parent = state.selectedElement.parentNode;
+
+    // Insérer après l'élément original
+    parent.insertBefore(clone, state.selectedElement.nextSibling);
+
+    // Décaler légèrement si position absolue
+    if (clone.style.position === 'absolute' || clone.style.position === 'fixed') {
+      const left = parseFloat(clone.style.left) || 0;
+      const top = parseFloat(clone.style.top) || 0;
+      clone.style.left = `${left + 10}px`;
+      clone.style.top = `${top + 10}px`;
+    }
+
+    // Enregistrer dans l'historique
+    recordInsertion(clone, parent);
+
+    // Sélectionner le clone
+    state.selectedElement = clone;
+    updateOverlay(ui.selectedOverlay, clone);
+    updatePanel(clone);
+    updateAllOverlays(clone);
+
+    // Rafraîchir le DOM Inspector
+    if (ui.domInspector.style.display === 'flex') {
+      refreshDOMTree();
+    }
+
+    console.log(`✅ Duplicated: ${clone.tagName.toLowerCase()}`);
+  }
+
+  /**
    * Attache les event listeners
    */
   function attachEventListeners() {
@@ -1234,6 +1363,30 @@
       if (state.enabled && e.ctrlKey && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault();
         redo();
+      }
+
+      // Ctrl+C : Copy
+      if (state.enabled && e.ctrlKey && e.key === 'c' && !e.shiftKey && !e.altKey) {
+        if (state.selectedElement && !isEditorElement(state.selectedElement)) {
+          e.preventDefault();
+          copyElement();
+        }
+      }
+
+      // Ctrl+V : Paste
+      if (state.enabled && e.ctrlKey && e.key === 'v' && !e.shiftKey && !e.altKey) {
+        if (state.clipboard) {
+          e.preventDefault();
+          pasteElement();
+        }
+      }
+
+      // Ctrl+D : Duplicate
+      if (state.enabled && e.ctrlKey && e.key === 'd' && !e.shiftKey && !e.altKey) {
+        if (state.selectedElement && !isEditorElement(state.selectedElement)) {
+          e.preventDefault();
+          duplicateElement();
+        }
       }
 
       // Raccourcis clavier pour insertion (sans Ctrl)
@@ -1401,6 +1554,70 @@
   }
 
   /**
+   * Aligne un élément selon le type spécifié
+   */
+  function alignElement(element, alignType) {
+    const parent = element.parentNode;
+    if (!parent) return;
+
+    const parentRect = parent.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+
+    // Sauvegarder les anciennes valeurs
+    const oldPosition = element.style.position;
+    const oldLeft = element.style.left;
+    const oldTop = element.style.top;
+    const oldMargin = element.style.margin;
+
+    // Assurer que l'élément est positionné
+    if (element.style.position !== 'absolute' && element.style.position !== 'fixed') {
+      element.style.position = 'absolute';
+    }
+
+    switch (alignType) {
+      case 'left':
+        element.style.left = '0px';
+        break;
+      case 'center-h':
+        const centerX = (parentRect.width - elementRect.width) / 2;
+        element.style.left = `${centerX}px`;
+        element.style.margin = '0';
+        break;
+      case 'right':
+        element.style.left = `${parentRect.width - elementRect.width}px`;
+        break;
+      case 'top':
+        element.style.top = '0px';
+        break;
+      case 'center-v':
+        const centerY = (parentRect.height - elementRect.height) / 2;
+        element.style.top = `${centerY}px`;
+        element.style.margin = '0';
+        break;
+      case 'bottom':
+        element.style.top = `${parentRect.height - elementRect.height}px`;
+        break;
+    }
+
+    // Enregistrer dans l'historique
+    if (oldLeft !== element.style.left) {
+      recordStyleChange(element, 'left', oldLeft, element.style.left);
+    }
+    if (oldTop !== element.style.top) {
+      recordStyleChange(element, 'top', oldTop, element.style.top);
+    }
+    if (oldPosition !== element.style.position) {
+      recordStyleChange(element, 'position', oldPosition, element.style.position);
+    }
+
+    // Mettre à jour les overlays
+    updateOverlay(ui.selectedOverlay, element);
+    updateAllOverlays(element);
+
+    console.log(`✅ Aligned: ${alignType}`);
+  }
+
+  /**
    * Met à jour le panneau d'édition
    */
   function updatePanel(element) {
@@ -1442,17 +1659,60 @@
     html += '<div><h4 style="margin: 12px 0 8px 0; font-size: 13px; color: #667eea; font-weight: 600;">CSS Properties</h4></div>';
 
     for (const [prop, value] of Object.entries(styles)) {
-      html += `
-        <div>
-          <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">${prop}</label>
-          <input type="text" data-css-prop="${prop}" value="${value}"
-            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 12px;">
-        </div>
-      `;
+      // Color picker pour background et color
+      const isColorProp = (prop === 'background' || prop === 'color');
+      const hexColor = isColorProp ? rgbToHex(value) : '';
+
+      if (isColorProp) {
+        html += `
+          <div>
+            <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">${prop}</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="color" data-css-prop="${prop}" value="${hexColor}"
+                style="width: 50px; height: 38px; border: 1px solid #ddd; border-radius: 6px; cursor: pointer;">
+              <input type="text" data-css-prop-text="${prop}" value="${value}"
+                style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 12px;">
+            </div>
+          </div>
+        `;
+      } else {
+        html += `
+          <div>
+            <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">${prop}</label>
+            <input type="text" data-css-prop="${prop}" value="${value}"
+              style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 12px;">
+          </div>
+        `;
+      }
     }
 
+    // Section Actions rapides
     html += `
-      <button id="ve-delete-element" style="background: #f44336; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; margin-top: 8px;">
+      <div style="margin-top: 16px;">
+        <h4 style="margin: 0 0 8px 0; font-size: 13px; color: #667eea; font-weight: 600;">Quick Actions</h4>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+          <button class="ve-align-btn" data-align="left" style="background: #f5f5f5; border: 1px solid #ddd; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; color: #333;" title="Align Left">
+            ⬅️ Left
+          </button>
+          <button class="ve-align-btn" data-align="center-h" style="background: #f5f5f5; border: 1px solid #ddd; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; color: #333;" title="Center Horizontally">
+            ↔️ Center
+          </button>
+          <button class="ve-align-btn" data-align="right" style="background: #f5f5f5; border: 1px solid #ddd; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; color: #333;" title="Align Right">
+            ➡️ Right
+          </button>
+          <button class="ve-align-btn" data-align="top" style="background: #f5f5f5; border: 1px solid #ddd; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; color: #333;" title="Align Top">
+            ⬆️ Top
+          </button>
+          <button class="ve-align-btn" data-align="center-v" style="background: #f5f5f5; border: 1px solid #ddd; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; color: #333;" title="Center Vertically">
+            ↕️ Middle
+          </button>
+          <button class="ve-align-btn" data-align="bottom" style="background: #f5f5f5; border: 1px solid #ddd; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; color: #333;" title="Align Bottom">
+            ⬇️ Bottom
+          </button>
+        </div>
+      </div>
+
+      <button id="ve-delete-element" style="background: #f44336; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; margin-top: 12px;">
         🗑️ Delete Element
       </button>
     `;
@@ -1487,6 +1747,36 @@
         element.style[prop] = e.target.value;
         updateOverlay(ui.selectedOverlay, element);
       });
+
+      // Pour les color pickers : synchroniser avec l'input text
+      if (input.type === 'color') {
+        input.addEventListener('input', (e) => {
+          const prop = e.target.dataset.cssProp;
+          const textInput = editorContent.querySelector(`input[data-css-prop-text="${prop}"]`);
+          if (textInput) {
+            textInput.value = e.target.value;
+          }
+        });
+      }
+    });
+
+    // Synchroniser les inputs text avec les color pickers
+    editorContent.querySelectorAll('input[data-css-prop-text]').forEach(textInput => {
+      textInput.addEventListener('input', (e) => {
+        const prop = e.target.dataset.cssPropText;
+        const colorPicker = editorContent.querySelector(`input[type="color"][data-css-prop="${prop}"]`);
+        if (colorPicker) {
+          try {
+            const hexValue = rgbToHex(e.target.value);
+            colorPicker.value = hexValue;
+          } catch (err) {
+            // Couleur invalide, on ignore
+          }
+        }
+        // Appliquer la couleur en temps réel
+        element.style[prop] = e.target.value;
+        updateOverlay(ui.selectedOverlay, element);
+      });
     });
 
     // Event listener pour le contenu HTML
@@ -1506,6 +1796,22 @@
 
     contentTextarea.addEventListener('input', (e) => {
       element.innerHTML = e.target.value;
+    });
+
+    // Event listeners pour l'alignement
+    editorContent.querySelectorAll('.ve-align-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const alignType = e.currentTarget.dataset.align;
+        alignElement(element, alignType);
+      });
+
+      // Hover effect
+      btn.addEventListener('mouseenter', (e) => {
+        e.target.style.background = '#e0e0e0';
+      });
+      btn.addEventListener('mouseleave', (e) => {
+        e.target.style.background = '#f5f5f5';
+      });
     });
 
     // Event listener pour la suppression
