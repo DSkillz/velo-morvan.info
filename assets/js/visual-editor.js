@@ -435,9 +435,9 @@
 
     document.body.appendChild(ui.boxModelOverlay);
 
-    // Attacher les event listeners pour les poignées
-    attachResizeHandleListeners();
-    attachMarginPaddingHandleListeners();
+    // TODO: Attacher les event listeners pour les poignées (à implémenter)
+    // attachResizeHandleListeners();
+    // attachMarginPaddingHandleListeners();
   }
 
   /**
