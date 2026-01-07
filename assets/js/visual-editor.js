@@ -12,7 +12,7 @@
     overlayBorder: '2px solid #2196F3',
     selectedColor: 'rgba(76, 175, 80, 0.3)',
     selectedBorder: '3px solid #4CAF50',
-    excludeSelectors: ['.visual-editor-overlay', '.visual-editor-panel', '.visual-editor-toolbar', '.visual-editor-dom-inspector', '.ve-drop-indicator', '.ve-dom-node']
+    excludeSelectors: ['.visual-editor-overlay', '.visual-editor-panel', '.visual-editor-toolbar', '.visual-editor-dom-inspector', '.visual-editor-insert-menu', '.ve-drop-indicator', '.ve-dom-node', '.ve-insert-preview']
   };
 
   // État global
@@ -24,7 +24,10 @@
     dragElement: null,
     modifications: [],
     history: [],
-    historyIndex: -1
+    historyIndex: -1,
+    insertMode: null, // null | 'frame' | 'text' | 'button' | 'image' | 'input' | 'link'
+    insertStartPos: null,
+    insertPreview: null
   };
 
   // Éléments UI
@@ -33,9 +36,123 @@
     selectedOverlay: null,
     panel: null,
     toolbar: null,
+    insertToolbar: null,
     domInspector: null,
     resizeHandles: null,
     boxModelOverlay: null
+  };
+
+  // Templates d'éléments pré-stylés
+  const TEMPLATES = {
+    frame: {
+      tag: 'div',
+      styles: {
+        width: '200px',
+        height: '200px',
+        background: '#f0f0f0',
+        border: '1px solid #ccc',
+        borderRadius: '8px',
+        padding: '20px'
+      },
+      content: ''
+    },
+    text: {
+      tag: 'p',
+      styles: {
+        fontSize: '16px',
+        color: '#333',
+        margin: '0'
+      },
+      content: 'Edit this text'
+    },
+    heading: {
+      tag: 'h2',
+      styles: {
+        fontSize: '32px',
+        fontWeight: '700',
+        color: '#333',
+        margin: '0'
+      },
+      content: 'Heading'
+    },
+    button: {
+      tag: 'button',
+      styles: {
+        padding: '12px 24px',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: 'white',
+        border: 'none',
+        borderRadius: '8px',
+        fontSize: '16px',
+        fontWeight: '600',
+        cursor: 'pointer',
+        boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
+      },
+      content: 'Click me'
+    },
+    image: {
+      tag: 'img',
+      styles: {
+        width: '300px',
+        height: '200px',
+        objectFit: 'cover',
+        borderRadius: '8px'
+      },
+      attributes: {
+        src: 'https://via.placeholder.com/300x200',
+        alt: 'Placeholder image'
+      },
+      content: ''
+    },
+    input: {
+      tag: 'input',
+      styles: {
+        padding: '12px',
+        border: '1px solid #ddd',
+        borderRadius: '6px',
+        fontSize: '16px',
+        width: '250px'
+      },
+      attributes: {
+        type: 'text',
+        placeholder: 'Enter text...'
+      },
+      content: ''
+    },
+    link: {
+      tag: 'a',
+      styles: {
+        color: '#667eea',
+        textDecoration: 'none',
+        fontWeight: '600',
+        borderBottom: '2px solid #667eea'
+      },
+      attributes: {
+        href: '#'
+      },
+      content: 'Link text'
+    },
+    card: {
+      tag: 'div',
+      styles: {
+        width: '300px',
+        background: 'white',
+        borderRadius: '12px',
+        padding: '24px',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+        border: '1px solid #e0e0e0'
+      },
+      content: '<h3 style="margin: 0 0 12px 0; font-size: 20px;">Card Title</h3><p style="margin: 0; color: #666;">Card description goes here.</p>'
+    },
+    section: {
+      tag: 'section',
+      styles: {
+        width: '100%',
+        padding: '60px 20px',
+        background: '#f9f9f9'
+      },
+      content: '<div style="max-width: 1200px; margin: 0 auto;"><h2 style="font-size: 36px; margin: 0 0 20px 0;">Section Title</h2><p style="font-size: 18px; color: #666;">Section content</p></div>'
+    }
   };
 
   /**
@@ -120,6 +237,9 @@
       <button id="ve-toggle-dom" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-weight: 600;" title="Toggle DOM Inspector">
         🌳 DOM
       </button>
+      <button id="ve-insert" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-weight: 600; position: relative;" title="Insert Element">
+        ➕ Insert
+      </button>
       <button id="ve-toggle-drag" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-weight: 600;">
         🔒 Drag OFF
       </button>
@@ -132,6 +252,130 @@
     `;
 
     document.body.appendChild(ui.toolbar);
+
+    // Créer le dropdown menu d'insertion
+    createInsertMenu();
+  }
+
+  /**
+   * Crée le menu dropdown d'insertion d'éléments
+   */
+  function createInsertMenu() {
+    ui.insertToolbar = document.createElement('div');
+    ui.insertToolbar.className = 'visual-editor-insert-menu';
+    ui.insertToolbar.style.cssText = `
+      position: fixed;
+      top: 60px;
+      right: 10px;
+      z-index: 1000001;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      display: none;
+      flex-direction: column;
+      padding: 8px;
+      min-width: 220px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    `;
+
+    ui.insertToolbar.innerHTML = `
+      <div style="padding: 8px 12px; border-bottom: 1px solid #e0e0e0; color: #666; font-size: 12px; font-weight: 600;">
+        INSERT ELEMENT
+      </div>
+      <button class="ve-insert-tool" data-tool="frame" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: none; background: transparent; cursor: pointer; border-radius: 6px; font-size: 14px; text-align: left; width: 100%;">
+        <span style="font-size: 20px;">📦</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600; color: #333;">Frame</div>
+          <div style="font-size: 11px; color: #999;">Container box</div>
+        </div>
+        <kbd style="background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #666;">R</kbd>
+      </button>
+      <button class="ve-insert-tool" data-tool="text" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: none; background: transparent; cursor: pointer; border-radius: 6px; font-size: 14px; text-align: left; width: 100%;">
+        <span style="font-size: 20px;">📝</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600; color: #333;">Text</div>
+          <div style="font-size: 11px; color: #999;">Paragraph</div>
+        </div>
+        <kbd style="background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #666;">T</kbd>
+      </button>
+      <button class="ve-insert-tool" data-tool="heading" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: none; background: transparent; cursor: pointer; border-radius: 6px; font-size: 14px; text-align: left; width: 100%;">
+        <span style="font-size: 20px;">📰</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600; color: #333;">Heading</div>
+          <div style="font-size: 11px; color: #999;">Title text</div>
+        </div>
+        <kbd style="background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #666;">H</kbd>
+      </button>
+      <button class="ve-insert-tool" data-tool="button" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: none; background: transparent; cursor: pointer; border-radius: 6px; font-size: 14px; text-align: left; width: 100%;">
+        <span style="font-size: 20px;">🔘</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600; color: #333;">Button</div>
+          <div style="font-size: 11px; color: #999;">Call to action</div>
+        </div>
+        <kbd style="background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #666;">B</kbd>
+      </button>
+      <button class="ve-insert-tool" data-tool="image" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: none; background: transparent; cursor: pointer; border-radius: 6px; font-size: 14px; text-align: left; width: 100%;">
+        <span style="font-size: 20px;">🖼️</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600; color: #333;">Image</div>
+          <div style="font-size: 11px; color: #999;">Picture</div>
+        </div>
+        <kbd style="background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #666;">I</kbd>
+      </button>
+      <button class="ve-insert-tool" data-tool="input" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: none; background: transparent; cursor: pointer; border-radius: 6px; font-size: 14px; text-align: left; width: 100%;">
+        <span style="font-size: 20px;">✏️</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600; color: #333;">Input</div>
+          <div style="font-size: 11px; color: #999;">Text field</div>
+        </div>
+        <kbd style="background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #666;">F</kbd>
+      </button>
+      <button class="ve-insert-tool" data-tool="link" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: none; background: transparent; cursor: pointer; border-radius: 6px; font-size: 14px; text-align: left; width: 100%;">
+        <span style="font-size: 20px;">🔗</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600; color: #333;">Link</div>
+          <div style="font-size: 11px; color: #999;">Hyperlink</div>
+        </div>
+        <kbd style="background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #666;">L</kbd>
+      </button>
+      <div style="border-top: 1px solid #e0e0e0; margin: 4px 0;"></div>
+      <button class="ve-insert-tool" data-tool="card" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: none; background: transparent; cursor: pointer; border-radius: 6px; font-size: 14px; text-align: left; width: 100%;">
+        <span style="font-size: 20px;">🃏</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600; color: #333;">Card</div>
+          <div style="font-size: 11px; color: #999;">Pre-styled card</div>
+        </div>
+        <kbd style="background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #666;">C</kbd>
+      </button>
+      <button class="ve-insert-tool" data-tool="section" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: none; background: transparent; cursor: pointer; border-radius: 6px; font-size: 14px; text-align: left; width: 100%;">
+        <span style="font-size: 20px;">📑</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600; color: #333;">Section</div>
+          <div style="font-size: 11px; color: #999;">Page section</div>
+        </div>
+        <kbd style="background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #666;">S</kbd>
+      </button>
+    `;
+
+    document.body.appendChild(ui.insertToolbar);
+
+    // Ajouter les event listeners sur les boutons
+    ui.insertToolbar.querySelectorAll('.ve-insert-tool').forEach(btn => {
+      // Effet hover
+      btn.addEventListener('mouseenter', () => {
+        btn.style.background = '#f5f5f5';
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.background = 'transparent';
+      });
+
+      // Click pour activer le mode insertion
+      btn.addEventListener('click', (e) => {
+        const tool = e.currentTarget.dataset.tool;
+        activateInsertMode(tool);
+        ui.insertToolbar.style.display = 'none';
+      });
+    });
   }
 
   /**
@@ -751,6 +995,224 @@
   }
 
   /**
+   * Active le mode insertion pour un outil donné
+   */
+  function activateInsertMode(tool) {
+    state.insertMode = tool;
+    document.body.style.cursor = 'crosshair';
+
+    // Indicateur visuel dans la toolbar
+    const insertBtn = document.getElementById('ve-insert');
+    insertBtn.style.background = 'rgba(76, 175, 80, 0.3)';
+    insertBtn.textContent = `➕ ${tool.charAt(0).toUpperCase() + tool.slice(1)}`;
+
+    console.log(`🎨 Insert mode activated: ${tool} (click to place, drag to size)`);
+  }
+
+  /**
+   * Désactive le mode insertion
+   */
+  function deactivateInsertMode() {
+    state.insertMode = null;
+    state.insertStartPos = null;
+
+    if (state.insertPreview) {
+      state.insertPreview.remove();
+      state.insertPreview = null;
+    }
+
+    document.body.style.cursor = state.enabled ? 'crosshair' : '';
+
+    const insertBtn = document.getElementById('ve-insert');
+    if (insertBtn) {
+      insertBtn.style.background = 'rgba(255,255,255,0.2)';
+      insertBtn.textContent = '➕ Insert';
+    }
+  }
+
+  /**
+   * Gère le clic/drag pour insérer un élément
+   */
+  function handleInsertMouseDown(e) {
+    if (!state.insertMode) return;
+
+    const target = getElementAtPoint(e.clientX, e.clientY);
+    if (!target || isEditorElement(target)) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Sauvegarder la position de départ
+    state.insertStartPos = { x: e.clientX, y: e.clientY };
+
+    // Créer le preview fantôme
+    createInsertPreview(e.clientX, e.clientY);
+
+    // Event listeners pour le drag
+    document.addEventListener('mousemove', handleInsertMouseMove);
+    document.addEventListener('mouseup', handleInsertMouseUp);
+  }
+
+  /**
+   * Crée le preview fantôme de l'élément à insérer
+   */
+  function createInsertPreview(x, y) {
+    const template = TEMPLATES[state.insertMode];
+    if (!template) return;
+
+    state.insertPreview = document.createElement('div');
+    state.insertPreview.className = 've-insert-preview';
+    state.insertPreview.style.cssText = `
+      position: fixed;
+      left: ${x}px;
+      top: ${y}px;
+      border: 2px dashed #667eea;
+      background: rgba(102, 126, 234, 0.1);
+      pointer-events: none;
+      z-index: 999999;
+      border-radius: 4px;
+      min-width: 20px;
+      min-height: 20px;
+    `;
+
+    document.body.appendChild(state.insertPreview);
+  }
+
+  /**
+   * Gère le mouvement de souris pendant le drag
+   */
+  function handleInsertMouseMove(e) {
+    if (!state.insertPreview || !state.insertStartPos) return;
+
+    const width = Math.abs(e.clientX - state.insertStartPos.x);
+    const height = Math.abs(e.clientY - state.insertStartPos.y);
+    const left = Math.min(e.clientX, state.insertStartPos.x);
+    const top = Math.min(e.clientY, state.insertStartPos.y);
+
+    state.insertPreview.style.left = `${left}px`;
+    state.insertPreview.style.top = `${top}px`;
+    state.insertPreview.style.width = `${Math.max(20, width)}px`;
+    state.insertPreview.style.height = `${Math.max(20, height)}px`;
+  }
+
+  /**
+   * Gère le relâchement de souris pour finaliser l'insertion
+   */
+  function handleInsertMouseUp(e) {
+    document.removeEventListener('mousemove', handleInsertMouseMove);
+    document.removeEventListener('mouseup', handleInsertMouseUp);
+
+    if (!state.insertPreview || !state.insertStartPos) return;
+
+    // Calculer la taille finale
+    const width = Math.abs(e.clientX - state.insertStartPos.x);
+    const height = Math.abs(e.clientY - state.insertStartPos.y);
+
+    // Trouver l'élément parent où insérer
+    const targetX = (state.insertStartPos.x + e.clientX) / 2;
+    const targetY = (state.insertStartPos.y + e.clientY) / 2;
+
+    state.insertPreview.style.display = 'none';
+    const parent = document.elementFromPoint(targetX, targetY);
+    state.insertPreview.style.display = 'block';
+
+    if (!parent || isEditorElement(parent)) {
+      console.warn('Cannot insert here');
+      deactivateInsertMode();
+      return;
+    }
+
+    // Créer l'élément depuis le template
+    const newElement = createElementFromTemplate(state.insertMode, width, height);
+
+    // Position absolue à l'endroit cliqué
+    newElement.style.position = 'absolute';
+    newElement.style.left = `${state.insertStartPos.x - parent.getBoundingClientRect().left + window.scrollX}px`;
+    newElement.style.top = `${state.insertStartPos.y - parent.getBoundingClientRect().top + window.scrollY}px`;
+
+    if (width > 30) {
+      newElement.style.width = `${width}px`;
+    }
+    if (height > 30) {
+      newElement.style.height = `${height}px`;
+    }
+
+    // Insérer dans le DOM
+    parent.appendChild(newElement);
+
+    // Enregistrer dans l'historique
+    recordInsertion(newElement, parent);
+
+    // Sélectionner l'élément créé
+    state.selectedElement = newElement;
+    updateOverlay(ui.selectedOverlay, newElement);
+    updatePanel(newElement);
+    updateAllOverlays(newElement);
+
+    // Rafraîchir le DOM Inspector si ouvert
+    if (ui.domInspector.style.display === 'flex') {
+      refreshDOMTree();
+    }
+
+    console.log(`✅ Element inserted: ${state.insertMode}`);
+
+    // Désactiver le mode insertion
+    deactivateInsertMode();
+  }
+
+  /**
+   * Crée un élément depuis un template
+   */
+  function createElementFromTemplate(tool, width = null, height = null) {
+    const template = TEMPLATES[tool];
+    if (!template) return null;
+
+    const element = document.createElement(template.tag);
+
+    // Appliquer les styles
+    if (template.styles) {
+      Object.assign(element.style, template.styles);
+    }
+
+    // Appliquer les attributs
+    if (template.attributes) {
+      for (const [key, value] of Object.entries(template.attributes)) {
+        element.setAttribute(key, value);
+      }
+    }
+
+    // Appliquer le contenu
+    if (template.content) {
+      element.innerHTML = template.content;
+    }
+
+    return element;
+  }
+
+  /**
+   * Enregistre l'insertion d'un élément dans l'historique
+   */
+  function recordInsertion(element, parent) {
+    const action = {
+      type: 'insert',
+      element: element,
+      parent: parent,
+      nextSibling: element.nextSibling,
+      timestamp: new Date().toISOString()
+    };
+
+    addToHistory(action);
+
+    // Enregistrer dans les modifications
+    state.modifications.push({
+      timestamp: action.timestamp,
+      element: getElementPath(element),
+      type: 'inserted',
+      tag: element.tagName.toLowerCase()
+    });
+  }
+
+  /**
    * Attache les event listeners
    */
   function attachEventListeners() {
@@ -773,6 +1235,33 @@
         e.preventDefault();
         redo();
       }
+
+      // Raccourcis clavier pour insertion (sans Ctrl)
+      if (state.enabled && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        const key = e.key.toLowerCase();
+        const toolMap = {
+          'r': 'frame',
+          't': 'text',
+          'h': 'heading',
+          'b': 'button',
+          'i': 'image',
+          'f': 'input',
+          'l': 'link',
+          'c': 'card',
+          's': 'section'
+        };
+
+        if (toolMap[key]) {
+          e.preventDefault();
+          activateInsertMode(toolMap[key]);
+        }
+
+        // Escape pour annuler le mode insertion
+        if (e.key === 'Escape' && state.insertMode) {
+          e.preventDefault();
+          deactivateInsertMode();
+        }
+      }
     });
 
     // Boutons toolbar
@@ -790,6 +1279,21 @@
 
     document.getElementById('ve-toggle-dom').addEventListener('click', () => {
       toggleDOMInspector();
+    });
+
+    // Bouton Insert : toggle le menu
+    document.getElementById('ve-insert').addEventListener('click', () => {
+      const menu = ui.insertToolbar;
+      menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
+    });
+
+    // Fermer le menu Insert si on clique ailleurs
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#ve-insert') && !e.target.closest('.visual-editor-insert-menu')) {
+        if (ui.insertToolbar) {
+          ui.insertToolbar.style.display = 'none';
+        }
+      }
     });
 
     document.getElementById('ve-toggle-drag').addEventListener('click', (e) => {
@@ -810,6 +1314,9 @@
     // Survol et sélection
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('click', handleClick);
+
+    // Mode insertion : mousedown pour drag-to-size
+    document.addEventListener('mousedown', handleInsertMouseDown);
 
     // Drag & drop
     document.addEventListener('dragstart', handleDragStart);
@@ -861,6 +1368,9 @@
    */
   function handleClick(e) {
     if (!state.enabled) return;
+
+    // Ne pas gérer le clic si on est en mode insertion
+    if (state.insertMode) return;
 
     // Obtenir l'élément réel sous le curseur
     const target = getElementAtPoint(e.clientX, e.clientY);
@@ -1273,6 +1783,18 @@
           console.log('🗑️ Element re-deleted');
         }
         break;
+
+      case 'insert':
+        if (isUndo) {
+          // Annuler l'insertion = supprimer l'élément
+          action.element.remove();
+          console.log('↶ Insertion cancelled');
+        } else {
+          // Refaire l'insertion = restaurer l'élément
+          action.parent.insertBefore(action.element, action.nextSibling);
+          console.log('↷ Element re-inserted');
+        }
+        break;
     }
   }
 
@@ -1485,12 +2007,18 @@
       ui.selectedOverlay.style.display = 'none';
       ui.resizeHandles.style.display = 'none';
       ui.boxModelOverlay.style.display = 'none';
+      ui.insertToolbar.style.display = 'none';
       document.body.style.cursor = '';
 
       // Désactiver le drag
       if (state.isDragging) {
         state.isDragging = false;
         disableDragForAll();
+      }
+
+      // Désactiver le mode insertion
+      if (state.insertMode) {
+        deactivateInsertMode();
       }
 
       // Nettoyer les indicateurs de drop
