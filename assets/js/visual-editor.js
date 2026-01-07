@@ -33,7 +33,9 @@
     selectedOverlay: null,
     panel: null,
     toolbar: null,
-    domInspector: null
+    domInspector: null,
+    resizeHandles: null,
+    boxModelOverlay: null
   };
 
   /**
@@ -44,6 +46,8 @@
     createToolbar();
     createPanel();
     createDOMInspector();
+    createResizeHandles();
+    createBoxModelOverlay();
     attachEventListeners();
     console.log('🎨 Visual Editor initialized! Press Ctrl+E to toggle.');
   }
@@ -233,16 +237,21 @@
     `;
 
     ui.domInspector.innerHTML = `
-      <div style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); padding: 12px 16px; color: white; display: flex; justify-content: space-between; align-items: center;">
+      <div id="ve-dom-header" style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); padding: 12px 16px; color: white; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 16px;">🌳</span>
           <span style="font-weight: 600;">DOM Inspector</span>
         </div>
-        <button id="ve-dom-refresh" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Refresh">
-          ↻
-        </button>
+        <div style="display: flex; gap: 4px;">
+          <button id="ve-dom-refresh" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Refresh">
+            ↻
+          </button>
+          <button id="ve-dom-minimize" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;" title="Minimize">
+            −
+          </button>
+        </div>
       </div>
-      <div id="ve-dom-tree" style="overflow-y: auto; flex: 1; padding: 8px; background: #fafafa;">
+      <div id="ve-dom-body" style="overflow-y: auto; flex: 1; padding: 8px; background: #fafafa;">
         <div style="color: #999; text-align: center; padding: 20px;">Building tree...</div>
       </div>
     `;
@@ -250,9 +259,42 @@
     document.body.appendChild(ui.domInspector);
 
     // Event listener pour refresh
-    document.getElementById('ve-dom-refresh').addEventListener('click', () => {
+    document.getElementById('ve-dom-refresh').addEventListener('click', (e) => {
+      e.stopPropagation();
       refreshDOMTree();
     });
+
+    // Event listener pour minimize
+    document.getElementById('ve-dom-minimize').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleDOMMinimize();
+    });
+
+    // Double-clic sur header pour minimize
+    document.getElementById('ve-dom-header').addEventListener('dblclick', () => {
+      toggleDOMMinimize();
+    });
+  }
+
+  /**
+   * Toggle la minimisation du DOM Inspector
+   */
+  function toggleDOMMinimize() {
+    const body = document.getElementById('ve-dom-body');
+    const btn = document.getElementById('ve-dom-minimize');
+    const isMinimized = body.style.display === 'none';
+
+    if (isMinimized) {
+      body.style.display = 'block';
+      ui.domInspector.style.maxHeight = '80vh';
+      ui.domInspector.style.width = '350px';
+      btn.textContent = '−';
+    } else {
+      body.style.display = 'none';
+      ui.domInspector.style.maxHeight = '48px';
+      ui.domInspector.style.width = 'auto';
+      btn.textContent = '+';
+    }
   }
 
   /**
@@ -309,10 +351,100 @@
   }
 
   /**
+   * Crée les poignées de redimensionnement
+   */
+  function createResizeHandles() {
+    ui.resizeHandles = document.createElement('div');
+    ui.resizeHandles.className = 'visual-editor-resize-handles';
+    ui.resizeHandles.style.cssText = `
+      position: absolute;
+      display: none;
+      pointer-events: none;
+      z-index: 999996;
+    `;
+
+    const positions = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+    const cursors = {
+      nw: 'nwse-resize', n: 'ns-resize', ne: 'nesw-resize', e: 'ew-resize',
+      se: 'nwse-resize', s: 'ns-resize', sw: 'nesw-resize', w: 'ew-resize'
+    };
+
+    positions.forEach(pos => {
+      const handle = document.createElement('div');
+      handle.className = `ve-resize-handle ve-resize-${pos}`;
+      handle.dataset.position = pos;
+      handle.style.cssText = `
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        background: #2196F3;
+        border: 2px solid white;
+        border-radius: 50%;
+        cursor: ${cursors[pos]};
+        pointer-events: auto;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      `;
+
+      // Positionnement des poignées
+      if (pos.includes('n')) handle.style.top = '-5px';
+      if (pos.includes('s')) handle.style.bottom = '-5px';
+      if (pos.includes('w')) handle.style.left = '-5px';
+      if (pos.includes('e')) handle.style.right = '-5px';
+      if (pos === 'n' || pos === 's') handle.style.left = 'calc(50% - 5px)';
+      if (pos === 'w' || pos === 'e') handle.style.top = 'calc(50% - 5px)';
+
+      ui.resizeHandles.appendChild(handle);
+    });
+
+    document.body.appendChild(ui.resizeHandles);
+  }
+
+  /**
+   * Crée l'overlay du Box Model (margin/padding)
+   */
+  function createBoxModelOverlay() {
+    ui.boxModelOverlay = document.createElement('div');
+    ui.boxModelOverlay.className = 'visual-editor-box-model';
+    ui.boxModelOverlay.style.cssText = `
+      position: absolute;
+      display: none;
+      pointer-events: none;
+      z-index: 999995;
+    `;
+
+    ui.boxModelOverlay.innerHTML = `
+      <div id="ve-margin-overlay" style="position: absolute; box-sizing: border-box; border: 2px dashed #f9cc9d; background: rgba(249, 204, 157, 0.1);"></div>
+      <div id="ve-padding-overlay" style="position: absolute; box-sizing: border-box; border: 2px dashed #c2e0c6; background: rgba(194, 224, 198, 0.1);"></div>
+
+      <!-- Poignées margin -->
+      <div class="ve-margin-handle ve-margin-top" data-side="top" style="position: absolute; width: 40px; height: 8px; background: #f9cc9d; cursor: ns-resize; pointer-events: auto; left: 50%; transform: translateX(-50%); border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+      <div class="ve-margin-handle ve-margin-right" data-side="right" style="position: absolute; width: 8px; height: 40px; background: #f9cc9d; cursor: ew-resize; pointer-events: auto; top: 50%; transform: translateY(-50%); border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+      <div class="ve-margin-handle ve-margin-bottom" data-side="bottom" style="position: absolute; width: 40px; height: 8px; background: #f9cc9d; cursor: ns-resize; pointer-events: auto; left: 50%; transform: translateX(-50%); border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+      <div class="ve-margin-handle ve-margin-left" data-side="left" style="position: absolute; width: 8px; height: 40px; background: #f9cc9d; cursor: ew-resize; pointer-events: auto; top: 50%; transform: translateY(-50%); border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+
+      <!-- Poignées padding -->
+      <div class="ve-padding-handle ve-padding-top" data-side="top" style="position: absolute; width: 40px; height: 8px; background: #c2e0c6; cursor: ns-resize; pointer-events: auto; left: 50%; transform: translateX(-50%); border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+      <div class="ve-padding-handle ve-padding-right" data-side="right" style="position: absolute; width: 8px; height: 40px; background: #c2e0c6; cursor: ew-resize; pointer-events: auto; top: 50%; transform: translateY(-50%); border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+      <div class="ve-padding-handle ve-padding-bottom" data-side="bottom" style="position: absolute; width: 40px; height: 8px; background: #c2e0c6; cursor: ns-resize; pointer-events: auto; left: 50%; transform: translateX(-50%); border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+      <div class="ve-padding-handle ve-padding-left" data-side="left" style="position: absolute; width: 8px; height: 40px; background: #c2e0c6; cursor: ew-resize; pointer-events: auto; top: 50%; transform: translateY(-50%); border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+
+      <!-- Labels pour les valeurs -->
+      <div id="ve-margin-labels" style="position: absolute; font-family: monospace; font-size: 10px; color: #f57c00; font-weight: bold; pointer-events: none;"></div>
+      <div id="ve-padding-labels" style="position: absolute; font-family: monospace; font-size: 10px; color: #388e3c; font-weight: bold; pointer-events: none;"></div>
+    `;
+
+    document.body.appendChild(ui.boxModelOverlay);
+
+    // Attacher les event listeners pour les poignées
+    attachResizeHandleListeners();
+    attachMarginPaddingHandleListeners();
+  }
+
+  /**
    * Rafraîchit l'arborescence DOM
    */
   function refreshDOMTree() {
-    const treeContainer = document.getElementById('ve-dom-tree');
+    const treeContainer = document.getElementById('ve-dom-body');
     if (!treeContainer) return;
 
     treeContainer.innerHTML = buildDOMTree(document.body, 0);
